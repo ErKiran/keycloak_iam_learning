@@ -85,7 +85,9 @@ app.get("/callback", async (req, res) => {
     return res.status(400).send("Missing authorization code");
   }
 
-  console.log("code\t", code)
+    console.log("code\t", code)
+
+
 
   try {
     const tokenResponse = await axios.post(
