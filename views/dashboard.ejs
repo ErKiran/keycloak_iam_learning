@@ -290,9 +290,8 @@
           window.location.href = "/authorize-transfer?" + qs;
           return;
         }
-        note.className = "note err";
-        note.textContent = "Transfer blocked ❌\n" + (data.error || "Unknown error");
-        return;
+        window.location.href = "/authorize-transfer";
+          return;
       }
 
       if (res.ok) {

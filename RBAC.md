@@ -39,4 +39,35 @@ Now, we got the roles we can now map that in a enforcement in our node.js server
 
 With these checks we can enforce permission on the node.js client. 
 
+For the simple RBAC we have set role based dashboard: 
+* if the user is customer he can see the customer dashboard and perform transactions 
+* if the user is teller he can see all customer balances but can't perform transcations.
 
+```js
+ if (roles.includes("teller") && !req.query.user) {
+        return res.redirect("/teller")
+    }
+
+    // allow customer + teller to view the dashboard UI
+    if (!roles.includes("customer") && !roles.includes("teller")) {
+        return res.status(403).render("unauthorized");
+    }
+```
+
+Teller Landing Page with RBAC imposed in a API layer 
+
+```js 
+  const roles = getUserRoles(req);
+
+  if (!roles.includes("customer")) {
+    req.session.transferAllowed = false;
+    req.session.pendingTransfer = null;
+    return res.status(403).render("unauthorized");
+  }
+```
+
+![blocked](docs/rbac/teller-transfer-blocked.gif)
+
+Customer Landing on Dashboard and allowded to perform the transaction
+
+![success](docs/rbac/user_transfer_success.gif)
