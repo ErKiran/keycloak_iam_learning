@@ -1,0 +1,87 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>NeoBank Teller Console</title>
+<style>
+  :root{
+    --bg:#0b1220;--text:#e7eefc;--muted:#a8b3cf;--line:rgba(255,255,255,.08);
+    --accent:#4f8cff;--good:#34d399;--shadow:0 20px 60px rgba(0,0,0,.35);--r:18px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+    background: radial-gradient(1200px 800px at 20% 10%, rgba(79,140,255,.25), transparent 60%),
+                radial-gradient(900px 600px at 90% 20%, rgba(52,211,153,.18), transparent 50%),
+                linear-gradient(180deg,var(--bg),#060a12);
+    color:var(--text);min-height:100vh;display:flex;justify-content:center;padding:24px;
+  }
+  .shell{width:min(980px,100%)}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,rgba(79,140,255,.95),rgba(52,211,153,.85));box-shadow:var(--shadow)}
+  .pill{padding:10px 12px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:999px;color:var(--text);font-size:13px;text-decoration:none}
+  .card{
+    background:linear-gradient(180deg,rgba(18,27,46,.95),rgba(15,23,42,.88));
+    border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--shadow);
+  }
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:12px}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:10px 12px;border-radius:12px;text-decoration:none;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--text);
+    font-weight:600;font-size:13px;
+  }
+  .tag{display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:12px}
+  .dot{width:8px;height:8px;border-radius:99px;background:var(--good);box-shadow:0 0 0 3px rgba(52,211,153,.12)}
+</style>
+</head>
+<body>
+  <div class="shell">
+    <div class="top">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <div style="font-weight:750">NeoBank Teller Console</div>
+          <div style="color:var(--muted);font-size:12px">Role-based landing page • Teller</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="tag"><span class="dot"></span> Teller Session</span>
+        <a class="pill" href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:650">Customers</div>
+      <div style="color:var(--muted);font-size:12px;margin-top:6px">
+        View a customer profile (demo). Attempting to transfer money on behalf of customer Blocked (RBAC).
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Username</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% (customers || []).forEach(c => { %>
+            <tr>
+              <td><%= c.name %></td>
+              <td><code><%= c.username %></code></td>
+              <td>
+                <a class="btn" href="/dashboard?user=<%= encodeURIComponent(c.username) %>">👁 View details</a>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

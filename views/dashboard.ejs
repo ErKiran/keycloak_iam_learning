@@ -1,36 +1,187 @@
 <!doctype html>
 <html>
+
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MiniBank</title>
   <style>
-    :root{--bg:#0b1220;--card:#121b2e;--text:#e7eefc;--muted:#a8b3cf;--line:rgba(255,255,255,.08);--accent:#4f8cff;--good:#34d399;--bad:#fb7185;--shadow:0 20px 60px rgba(0,0,0,.35);--r:18px;}
-    *{box-sizing:border-box}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:radial-gradient(1200px 800px at 20% 10%, rgba(79,140,255,.25), transparent 60%),radial-gradient(900px 600px at 90% 20%, rgba(52,211,153,.18), transparent 50%),linear-gradient(180deg,var(--bg),#060a12);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
-    .shell{width:min(980px,100%);}
-    .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap}
-    .brand{display:flex;align-items:center;gap:12px}
-    .logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,rgba(79,140,255,.95),rgba(52,211,153,.85));box-shadow:var(--shadow)}
-    .pill{padding:10px 12px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:999px;color:var(--text);font-size:13px;text-decoration:none}
-    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}
-    @media(max-width:860px){.grid{grid-template-columns:1fr}}
-    .card{background:linear-gradient(180deg,rgba(18,27,46,.95),rgba(15,23,42,.88));border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
-    .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .muted{color:var(--muted)}
-    .title{font-weight:650}
-    .balanceBox{margin-top:14px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:16px}
-    .amount{font-size:34px;font-weight:760;letter-spacing:-.5px}
-    .btn{cursor:pointer;border:none;border-radius:12px;padding:10px 12px;color:var(--text);background:rgba(255,255,255,.08);border:1px solid var(--line);font-weight:600}
-    .btn.primary{background:linear-gradient(135deg,rgba(79,140,255,.95),rgba(79,140,255,.65));border:none}
-    label{font-size:12px;color:var(--muted)}
-    input{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);background:rgba(6,10,18,.6);color:var(--text);outline:none}
-    .inputs{margin-top:14px;display:grid;gap:10px}
-    .note{margin-top:12px;padding:12px;border-radius:14px;display:none;white-space:pre-wrap}
-    .ok{background:rgba(52,211,153,.10);border:1px solid rgba(52,211,153,.25)}
-    .err{background:rgba(251,113,133,.10);border:1px solid rgba(251,113,133,.25)}
+    :root {
+      --bg: #0b1220;
+      --card: #121b2e;
+      --text: #e7eefc;
+      --muted: #a8b3cf;
+      --line: rgba(255, 255, 255, .08);
+      --accent: #4f8cff;
+      --good: #34d399;
+      --bad: #fb7185;
+      --shadow: 0 20px 60px rgba(0, 0, 0, .35);
+      --r: 18px;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background: radial-gradient(1200px 800px at 20% 10%, rgba(79, 140, 255, .25), transparent 60%), radial-gradient(900px 600px at 90% 20%, rgba(52, 211, 153, .18), transparent 50%), linear-gradient(180deg, var(--bg), #060a12);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .shell {
+      width: min(980px, 100%);
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+      gap: 12px;
+      flex-wrap: wrap
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px
+    }
+
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(79, 140, 255, .95), rgba(52, 211, 153, .85));
+      box-shadow: var(--shadow)
+    }
+
+    .pill {
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--text);
+      font-size: 13px;
+      text-decoration: none
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 16px
+    }
+
+    @media(max-width:860px) {
+      .grid {
+        grid-template-columns: 1fr
+      }
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(18, 27, 46, .95), rgba(15, 23, 42, .88));
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 18px;
+      box-shadow: var(--shadow)
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px
+    }
+
+    .muted {
+      color: var(--muted)
+    }
+
+    .title {
+      font-weight: 650
+    }
+
+    .balanceBox {
+      margin-top: 14px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px;
+      background: rgba(255, 255, 255, .04);
+      border: 1px solid var(--line);
+      border-radius: 16px
+    }
+
+    .amount {
+      font-size: 34px;
+      font-weight: 760;
+      letter-spacing: -.5px
+    }
+
+    .btn {
+      cursor: pointer;
+      border: none;
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: var(--text);
+      background: rgba(255, 255, 255, .08);
+      border: 1px solid var(--line);
+      font-weight: 600
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, rgba(79, 140, 255, .95), rgba(79, 140, 255, .65));
+      border: none
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted)
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(6, 10, 18, .6);
+      color: var(--text);
+      outline: none
+    }
+
+    .inputs {
+      margin-top: 14px;
+      display: grid;
+      gap: 10px
+    }
+
+    .note {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 14px;
+      display: none;
+      white-space: pre-wrap
+    }
+
+    .ok {
+      background: rgba(52, 211, 153, .10);
+      border: 1px solid rgba(52, 211, 153, .25)
+    }
+
+    .err {
+      background: rgba(251, 113, 133, .10);
+      border: 1px solid rgba(251, 113, 133, .25)
+    }
   </style>
 </head>
+
 <body>
   <div class="shell">
     <div class="top">
@@ -60,7 +211,8 @@
         <div class="balanceBox">
           <div>
             <div class="muted" style="font-size:12px">Available balance</div>
-            <div class="amount" id="bal">$<%= balance.toFixed(2) %></div>
+            <div class="amount" id="bal">$<%= balance.toFixed(2) %>
+            </div>
           </div>
           <button class="btn" id="toggle">👁 Hide</button>
         </div>
@@ -120,6 +272,8 @@
       const fd = new FormData(tf);
       const payload = { to: fd.get("to"), amount: Number(fd.get("amount")) };
 
+      console.log("payload", payload)
+
       const res = await fetch("/transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -127,6 +281,7 @@
       });
 
       const data = await res.json();
+      console.log("data", data)
       note.style.display = "block";
 
       if (!res.ok) {
@@ -140,10 +295,22 @@
         return;
       }
 
+      if (res.ok) {
+        const qs = new URLSearchParams({
+          to: data.to,
+          amount: data.amount,
+          balance: data.newBalance,
+        }).toString();
+
+        window.location.href = "/transfer-success?" + qs;
+      }
+
+
       note.className = "note ok";
       note.textContent = "Transfer queued ✅\nTo: " + data.to + "\nAmount: $" + data.amount.toFixed(2);
       tf.reset();
     });
   </script>
 </body>
+
 </html>
