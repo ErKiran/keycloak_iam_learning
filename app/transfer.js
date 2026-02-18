@@ -1,16 +1,26 @@
-const { getUserRoles, authorizeEndpoint, getUsername, TRANSFER } = require("../helper");
+const { getUserRoles, authorizeEndpoint, getUsername, 
+  TRANSFER, KEYCLOAK_CLIENT_ID, KEYCLOAK_CLIENT_SECRET, REDIRECT_URI,
+umaDecision
+} = require("../helper");
 const querystring = require("querystring")
 
 
 const { getOrInitBalance, setBalance } = require("./store");
 
-function transfer(req, res) {
+async function transfer(req, res) {
   if (!req.session?.tokens?.access_token) {
     return res.status(401).json({ error: "LOGIN_REQUIRED" });
   }
 
-  const roles = getUserRoles(req);
-  if (!roles.includes(TRANSFER)) {
+  // const roles = getUserRoles(req);
+  // if (!roles.includes(TRANSFER)) {
+  //   return res.status(403).json({ error: "UNAUTHORIZED_ACTION" });
+  // }
+
+  const allowed = await umaDecision(req, "transfer", TRANSFER);
+
+  console.log("allowed...", allowed)
+  if (!allowed) {
     return res.status(403).json({ error: "UNAUTHORIZED_ACTION" });
   }
 
@@ -88,14 +98,10 @@ function resumeTransfer(req, res) {
   return res.redirect(`/transfer-success?to=${to}&amount=${amt}&balance=${newBal}`)
 }
 
-function authorizeTransfer(req, res) {
+async function authorizeTransfer(req, res) {
 
-  const roles = getUserRoles(req)
-
-  // If user isn't eligible to transfer, don't even ask for consent
-  if (!roles.includes(TRANSFER)) {
-    return res.status(403).render("unauthorized"); // your EJS template
-  }
+ const allowed = await umaDecision(req, "transfer", "transfer:write");
+  if (!allowed) return res.status(403).render("unauthorized");
 
   const { to, amount } = req.query;
   req.session.pendingTransfer = { to, amount };
@@ -103,9 +109,10 @@ function authorizeTransfer(req, res) {
   const authUrl =
     `${authorizeEndpoint}?` +
     querystring.stringify({
-      client_id: process.env.KEYCLOAK_CLIENT_ID,
+      client_id: KEYCLOAK_CLIENT_ID,
+      client_secret: KEYCLOAK_CLIENT_SECRET,
       response_type: "code",
-      redirect_uri: process.env.REDIRECT_URI,
+      redirect_uri: REDIRECT_URI,
       scope: "openid transfer:write",
       prompt: "consent",
     });

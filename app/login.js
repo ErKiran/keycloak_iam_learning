@@ -13,6 +13,7 @@ function login(req, res) {
         `${authorizeEndpoint}?` +
         querystring.stringify({
             client_id: KEYCLOAK_CLIENT_ID,
+            client_secret: KEYCLOAK_CLIENT_SECRET,
             response_type: "code",
             scope: "openid profile email",
             redirect_uri: REDIRECT_URI,
