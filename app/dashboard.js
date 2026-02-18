@@ -1,16 +1,16 @@
-const { getUserRoles, getUsername } = require("../helper");
+const { getUserRoles, getUsername, USERLIST, READBALANCE  } = require("../helper");
 
 const { getOrInitBalance } = require("./store");
 
 function dashboard(req, res) {
     const roles = getUserRoles(req, res)
 
-    if (roles.includes("teller") && !req.query.user) {
+    if (roles.includes(USERLIST) && !req.query.user) {
         return res.redirect("/teller")
     }
 
     // allow customer + teller to view the dashboard UI
-    if (!roles.includes("customer") && !roles.includes("teller")) {
+    if (!roles.includes(READBALANCE)) {
         return res.status(403).render("unauthorized");
     }
 

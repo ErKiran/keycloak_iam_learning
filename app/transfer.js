@@ -1,4 +1,4 @@
-const { getUserRoles, authorizeEndpoint, getUsername } = require("../helper");
+const { getUserRoles, authorizeEndpoint, getUsername, TRANSFER } = require("../helper");
 const querystring = require("querystring")
 
 
@@ -10,7 +10,7 @@ function transfer(req, res) {
   }
 
   const roles = getUserRoles(req);
-  if (!roles.includes("customer")) {
+  if (!roles.includes(TRANSFER)) {
     return res.status(403).json({ error: "UNAUTHORIZED_ACTION" });
   }
 
@@ -55,7 +55,7 @@ function resumeTransfer(req, res) {
   }
 
   const roles = getUserRoles(req);
-  if (!roles.includes("customer")) {
+  if (!roles.includes(TRANSFER)) {
     req.session.transferAllowed = false;
     req.session.pendingTransfer = null;
     return res.status(403).render("unauthorized");
@@ -93,7 +93,7 @@ function authorizeTransfer(req, res) {
   const roles = getUserRoles(req)
 
   // If user isn't eligible to transfer, don't even ask for consent
-  if (!roles.includes("customer")) {
+  if (!roles.includes(TRANSFER)) {
     return res.status(403).render("unauthorized"); // your EJS template
   }
 

@@ -26,6 +26,10 @@ const {
   REDIRECT_URI,
 } = process.env;
 
+const USERLIST = "userlist:view"
+const TRANSFER = "transfer:write"
+const READBALANCE = "balance:read"
+
 const authorizeEndpoint = `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth`;
 const tokenEndpoint = `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`;
 
@@ -35,6 +39,9 @@ module.exports = {getUserRoles, requireLogin, getUsername,  KEYCLOAK_BASE_URL,
   KEYCLOAK_CLIENT_ID,
   KEYCLOAK_CLIENT_SECRET,
   REDIRECT_URI,
+  USERLIST,
+  TRANSFER,
+  READBALANCE,
   authorizeEndpoint,
   tokenEndpoint
 }

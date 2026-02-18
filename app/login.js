@@ -30,8 +30,6 @@ async function callback(req, res) {
 
     console.log("code\t", code)
 
-
-
     try {
         const tokenResponse = await axios.post(
             tokenEndpoint,
