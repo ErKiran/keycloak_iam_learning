@@ -12,10 +12,10 @@ async function transfer(req, res) {
     return res.status(401).json({ error: "LOGIN_REQUIRED" });
   }
 
-  // const roles = getUserRoles(req);
-  // if (!roles.includes(TRANSFER)) {
-  //   return res.status(403).json({ error: "UNAUTHORIZED_ACTION" });
-  // }
+  const roles = getUserRoles(req);
+  if (!roles.includes(TRANSFER)) {
+    return res.status(403).json({ error: "UNAUTHORIZED_ACTION" });
+  }
 
   const allowed = await umaDecision(req, "transfer", TRANSFER);
 
