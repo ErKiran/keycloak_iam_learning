@@ -1,0 +1,331 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Console</title>
+  <style>
+    :root {
+      --bg: #08131f;
+      --card: #122338;
+      --text: #e9f2ff;
+      --muted: #a7bfdc;
+      --line: rgba(255, 255, 255, .14);
+      --accent: #0ea5e9;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --shadow: 0 20px 64px rgba(0, 0, 0, .32);
+      --r: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background:
+        radial-gradient(900px 520px at 8% 0%, rgba(14, 165, 233, .24), transparent 62%),
+        radial-gradient(760px 460px at 92% 10%, rgba(245, 158, 11, .2), transparent 52%),
+        linear-gradient(180deg, var(--bg), #050b14);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 28px;
+    }
+
+    .shell {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .title {
+      font-size: 26px;
+      font-weight: 750;
+      letter-spacing: .2px;
+    }
+
+    .sub {
+      color: var(--muted);
+      margin-top: 4px;
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pill,
+    .btn {
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, .06);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(18, 35, 56, .96), rgba(10, 21, 36, .9));
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .cardTitle {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .cardSub {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .okBanner {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(34, 197, 94, .4);
+      background: rgba(34, 197, 94, .12);
+      border-radius: 12px;
+      color: #d5ffe3;
+      font-size: 13px;
+    }
+
+    .urlBox {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .05);
+    }
+
+    .urlLabel {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .urlValue {
+      color: #d9eeff;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+
+    .errBanner {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(239, 68, 68, .4);
+      background: rgba(239, 68, 68, .12);
+      border-radius: 12px;
+      color: #ffd5d5;
+      font-size: 13px;
+    }
+
+    .lockBanner {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(245, 158, 11, .45);
+      background: rgba(245, 158, 11, .13);
+      border-radius: 12px;
+      color: #ffefcf;
+      font-size: 13px;
+    }
+
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      padding: 11px 12px;
+      font-size: 14px;
+      color: var(--text);
+      background: rgba(5, 12, 21, .64);
+      outline: none;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .fields {
+      margin-top: 14px;
+      display: grid;
+      gap: 11px;
+    }
+
+    .double {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    @media (max-width: 640px) {
+      .double {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .submit {
+      margin-top: 14px;
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+      background: linear-gradient(120deg, var(--accent), #0284c7);
+      color: #f8fdff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+  </style>
+</head>
+
+<body>
+  <div class="shell">
+    <div class="header">
+      <div>
+        <div class="title">Admin Developer Console</div>
+        <div class="sub">Manage identity integrations and bootstrap enterprise login configuration.</div>
+      </div>
+      <div class="actions">
+        <span class="pill">Signed in: <%= userName %></span>
+        <a class="btn" href="/dashboard">User Dashboard</a>
+        <a class="btn" href="/logout">Logout</a>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="cardTitle">SAML Integration Setup</div>
+        <div class="cardSub">Manage multiple SSO configurations. Only one enabled configuration is in use.</div>
+
+        <% if (saved) { %>
+          <div class="okBanner">SAML integration settings saved.</div>
+
+          <% if (idpSetup) { %>
+            <div class="urlBox">
+              <div class="urlLabel">SP Initiated Login URL</div>
+              <div class="urlValue"><%= idpSetup.startLoginUrl %></div>
+            </div>
+            <div class="urlBox">
+              <div class="urlLabel">ACS URL</div>
+              <div class="urlValue"><%= idpSetup.acsUrl %></div>
+            </div>
+          <% } else { %>
+            <div class="urlBox">
+              <div class="urlLabel">SSO Runtime</div>
+              <div class="urlValue">No enabled configuration is currently in use.</div>
+            </div>
+          <% } %>
+        <% } %>
+
+        <% if (saveError) { %>
+          <div class="errBanner">SAML setup error: <%= saveError %></div>
+        <% } %>
+
+        <% if (canManageSaml) { %>
+          <div class="fields" style="margin-bottom: 12px;">
+            <form method="POST" action="/admin/saml/new">
+              <button class="submit" type="submit">Create New SSO</button>
+            </form>
+          </div>
+
+          <% if (Array.isArray(samlConfigs) && samlConfigs.length > 0) { %>
+            <div class="urlBox">
+              <div class="urlLabel">Saved SSO Configurations</div>
+              <% samlConfigs.forEach(function(cfg) { %>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:8px; padding:8px; border:1px solid var(--line); border-radius:10px;">
+                  <div style="flex:1 1 260px; font-size:13px; color:#d9eeff;">
+                    <strong><%= cfg.displayName || ('SSO #' + cfg.id) %></strong>
+                    <span style="color: var(--muted);">(#<%= cfg.id %>)</span>
+                    <% if (cfg.isActive) { %>
+                      <span style="color:#86efac;"> [In Use]</span>
+                    <% } %>
+                    <% if (!cfg.isEnabled) { %>
+                      <span style="color:#fca5a5;"> [Disabled]</span>
+                    <% } %>
+                  </div>
+
+                  <a class="btn" href="/admin/dashboard?configId=<%= cfg.id %>">Edit</a>
+
+                  <form method="POST" action="/admin/saml/<%= cfg.id %>/use" style="display:inline;">
+                    <button class="btn" type="submit" <%= cfg.isEnabled ? '' : 'disabled' %>>Use This</button>
+                  </form>
+
+                  <form method="POST" action="/admin/saml/<%= cfg.id %>/toggle" style="display:inline;">
+                    <input type="hidden" name="action" value="<%= cfg.isEnabled ? 'disable' : 'enable' %>" />
+                    <button class="btn" type="submit"><%= cfg.isEnabled ? 'Disable' : 'Enable' %></button>
+                  </form>
+                </div>
+              <% }); %>
+            </div>
+          <% } %>
+
+          <form class="fields" method="POST" action="/admin/saml">
+            <input type="hidden" name="configId" value="<%= samlConfig?.id || '' %>" />
+
+            <div>
+              <label for="displayName">SSO Name</label>
+              <input id="displayName" name="displayName" required placeholder="Corporate SSO" value="<%= samlConfig?.displayName || '' %>" />
+            </div>
+
+            <div>
+              <label for="ssoUrl">Login URL</label>
+              <input id="ssoUrl" name="ssoUrl" required placeholder="https://idp.example.com/sso" value="<%= samlConfig?.ssoUrl || '' %>" />
+            </div>
+
+            <div>
+              <label for="spEntityId">SP Entity ID</label>
+              <input id="spEntityId" name="spEntityId" required placeholder="urn:demo:keycloak:web-app" value="<%= samlConfig?.spEntityId || '' %>" />
+            </div>
+
+            <div>
+              <label for="x509Certificate">Certificate</label>
+              <textarea id="x509Certificate" name="x509Certificate" required placeholder="-----BEGIN CERTIFICATE-----"><%= samlConfig?.x509Certificate || '' %></textarea>
+            </div>
+
+            <button class="submit" type="submit">Save SSO Config</button>
+          </form>
+        <% } else { %>
+          <div class="lockBanner">Request one of these permissions: saml:setup, devconsole:setup, or admin.</div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

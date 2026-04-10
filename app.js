@@ -1,10 +1,20 @@
 require("dotenv").config();
 const express = require("express");
 const path = require("path");
+const passport = require("passport");
 
 const session = require("express-session");
 const { transfer, authorizeTransfer, transferSuccess, resumeTransfer } = require("./app/transfer");
 const { dashboard } = require("./app/dashboard");
+const {
+  adminDashboard,
+  saveSamlConfig,
+  createNewSamlConfig,
+  toggleSamlConfig,
+  useSamlConfig,
+} = require("./app/admin");
+const { samlLogin, samlLoginPost, samlAcs, samlMetadata } = require("./app/saml");
+const { initDb } = require("./app/db");
 const {tellerDashboard, tellerViewCustomer} = require("./app/teller")
 const { requireLogin } = require("./helper");
 const { login, callback } = require("./app/login");
@@ -22,6 +32,7 @@ app.use(
     cookie: { httpOnly: true },
   })
 );
+app.use(passport.initialize());
 
 // ✅ EJS setup
 app.set("view engine", "ejs");
@@ -32,6 +43,10 @@ const {
 } = process.env;
 
 app.get("/", login);
+app.get("/saml/login", samlLogin);
+app.post("/saml/login", samlLoginPost);
+app.post("/saml/acs", samlAcs);
+app.get("/saml/metadata", samlMetadata);
 app.post('/transfer', transfer)
 app.get("/callback", callback);
 
@@ -40,6 +55,11 @@ app.get("/authorize-transfer", authorizeTransfer)
 app.get("/callback", callback);
 
 app.get("/dashboard", requireLogin, dashboard)
+app.get("/admin/dashboard", requireLogin, adminDashboard)
+app.post("/admin/saml", requireLogin, saveSamlConfig)
+app.post("/admin/saml/new", requireLogin, createNewSamlConfig)
+app.post("/admin/saml/:id/use", requireLogin, useSamlConfig)
+app.post("/admin/saml/:id/toggle", requireLogin, toggleSamlConfig)
 
 app.get("/teller", requireLogin, tellerDashboard);
 
@@ -51,6 +71,13 @@ app.get("/resume-transfer", requireLogin, resumeTransfer)
 
 app.get("/transfer-success", requireLogin, transferSuccess);
 
-app.listen(PORT, () => {
-  console.log(`App running on http://localhost:${PORT}`);
-});
+initDb()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`App running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Failed to initialize SQLite:", err.message);
+    process.exit(1);
+  });

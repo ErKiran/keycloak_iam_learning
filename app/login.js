@@ -6,7 +6,9 @@ const {
     KEYCLOAK_CLIENT_SECRET,
     REDIRECT_URI,
     authorizeEndpoint,
-    tokenEndpoint } = require("../helper")
+    tokenEndpoint,
+    canAccessAdminDashboardFromRoles,
+} = require("../helper")
 
 function login(req, res) {
     const authUrl =
@@ -72,6 +74,11 @@ async function callback(req, res) {
         if (req.session.pendingTransfer) {
             req.session.transferAllowed = true;
             return res.redirect("/resume-transfer");
+        }
+
+        const accessRoles = jwt.decode(tokens.access_token)?.resource_access?.[KEYCLOAK_CLIENT_ID]?.roles || [];
+        if (canAccessAdminDashboardFromRoles(accessRoles)) {
+            return res.redirect("/admin/dashboard");
         }
 
         return res.redirect("/dashboard");

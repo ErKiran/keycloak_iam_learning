@@ -3,7 +3,9 @@ const axios = require("axios");
 
 function getUserRoles(req) {
   const token = req.session?.tokens?.access_token;
-  if (!token) return [];
+  if (!token) {
+    return Array.isArray(req.session?.user?.roles) ? req.session.user.roles : [];
+  }
 
   const decoded = jwt.decode(token);
   return decoded?.resource_access?.[process.env.KEYCLOAK_CLIENT_ID]?.roles || [];
@@ -15,7 +17,7 @@ function getUsername(req) {
 
 
 function requireLogin(req, res, next) {
-  if (!req.session?.tokens?.access_token) return res.redirect("/");
+  if (!req.session?.tokens?.access_token && !req.session?.user) return res.redirect("/");
   next();
 }
 
@@ -68,6 +70,47 @@ const {
 const USERLIST = "userlist:view"
 const TRANSFER = "transfer:write"
 const READBALANCE = "balance:read"
+const ADMIN_DASHBOARD = "admin:dashboard"
+const DEVCONSOLE_SETUP = "admin:developer:console"
+const SAML_SETUP = "admin:sso:saml"
+
+function canAccessAdminDashboardFromRoles(roles = []) {
+  return (
+    roles.includes(ADMIN_DASHBOARD) ||
+    roles.includes(DEVCONSOLE_SETUP) ||
+    roles.includes(SAML_SETUP) ||
+    roles.includes("admin")
+  );
+}
+
+function isAdminUser(req) {
+  return canAccessAdminDashboardFromRoles(getUserRoles(req));
+}
+
+/**
+ * Centralized dashboard redirect logic based on user roles.
+ * Determines which dashboard the user should access.
+ * Priority: Admin Dashboard > Teller > Customer Dashboard
+ */
+function getDashboardRedirect(roles = []) {
+  // 1. Admin dashboard for privileged users
+  if (canAccessAdminDashboardFromRoles(roles)) {
+    return "/admin/dashboard";
+  }
+  
+  // 2. Teller dashboard for users who manage other users
+  if (roles.includes(USERLIST)) {
+    return "/teller";
+  }
+  
+  // 3. Customer dashboard for balance reader
+  if (roles.includes(READBALANCE)) {
+    return "/dashboard";
+  }
+  
+  // 4. No suitable role
+  return null;
+}
 
 const authorizeEndpoint = `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth`;
 const tokenEndpoint = `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`;
@@ -81,6 +124,12 @@ module.exports = {getUserRoles, requireLogin, getUsername,  KEYCLOAK_BASE_URL,
   USERLIST,
   TRANSFER,
   READBALANCE,
+  ADMIN_DASHBOARD,
+  DEVCONSOLE_SETUP,
+  SAML_SETUP,
+  canAccessAdminDashboardFromRoles,
+  isAdminUser,
+  getDashboardRedirect,
   authorizeEndpoint,
   tokenEndpoint,
   umaDecision, requireUma

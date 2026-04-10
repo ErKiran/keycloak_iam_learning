@@ -76,6 +76,12 @@
     box-shadow:0 10px 25px rgba(79,140,255,.4);
   }
 
+  .btn.secondary{
+    margin-top:12px;
+    background:linear-gradient(135deg,#0ea5e9,#06b6d4);
+    box-shadow:0 10px 25px rgba(14,165,233,.35);
+  }
+
   .btn:hover{
     transform:translateY(-2px);
     box-shadow:0 15px 35px rgba(79,140,255,.5);
@@ -98,6 +104,12 @@
     <a href="<%= authUrl %>" class="btn">
       🚀 Get Started with NeoBank
     </a>
+
+    <div>
+      <a href="/saml/login" class="btn secondary">
+        Login with Enterprise SAML SSO
+      </a>
+    </div>
 
     <div class="footer">
       Authorization Code Flow • Secure Login
