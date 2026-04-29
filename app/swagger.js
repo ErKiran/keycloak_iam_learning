@@ -15,6 +15,7 @@ function buildOpenApi(req) {
       { name: "Admin" },
       { name: "Banking" },
       { name: "Teller" },
+      { name: "SCIM Metadata" },
       { name: "SCIM Users" },
       { name: "SCIM Groups" },
     ],
@@ -164,6 +165,38 @@ function buildOpenApi(req) {
             startIndex: { type: "integer" },
             itemsPerPage: { type: "integer" },
             Resources: { type: "array", items: { type: "object" } },
+          },
+        },
+        ScimSchemaResource: {
+          type: "object",
+          properties: {
+            schemas: {
+              type: "array",
+              items: { type: "string" },
+              example: ["urn:ietf:params:scim:schemas:core:2.0:Schema"],
+            },
+            id: { type: "string", example: "urn:ietf:params:scim:schemas:core:2.0:User" },
+            name: { type: "string", example: "User" },
+            description: { type: "string" },
+            attributes: { type: "array", items: { type: "object" } },
+            meta: { type: "object" },
+          },
+        },
+        ScimResourceType: {
+          type: "object",
+          properties: {
+            schemas: {
+              type: "array",
+              items: { type: "string" },
+              example: ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"],
+            },
+            id: { type: "string", example: "User" },
+            name: { type: "string", example: "User" },
+            endpoint: { type: "string", example: "/Users" },
+            description: { type: "string" },
+            schema: { type: "string", example: "urn:ietf:params:scim:schemas:core:2.0:User" },
+            schemaExtensions: { type: "array", items: { type: "object" } },
+            meta: { type: "object" },
           },
         },
         SamlConfigForm: {
@@ -405,6 +438,77 @@ function buildOpenApi(req) {
             },
           },
           responses: { 302: { description: "Redirect" }, 400: { description: "Invalid request" }, 403: { description: "Unauthorized" } },
+        },
+      },
+      "/scim/v2/Schemas": {
+        get: {
+          tags: ["SCIM Metadata"],
+          summary: "List supported SCIM schemas",
+          security: [{ ScimBearerAuth: [] }],
+          responses: {
+            200: {
+              description: "SCIM schema list",
+              content: { "application/scim+json": { schema: { $ref: "#/components/schemas/ScimListResponse" } } },
+            },
+          },
+        },
+      },
+      "/scim/v2/Schemas/{id}": {
+        get: {
+          tags: ["SCIM Metadata"],
+          summary: "Get a SCIM schema",
+          security: [{ ScimBearerAuth: [] }],
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string" },
+              example: "urn:ietf:params:scim:schemas:core:2.0:User",
+            },
+          ],
+          responses: {
+            200: {
+              description: "SCIM schema",
+              content: { "application/scim+json": { schema: { $ref: "#/components/schemas/ScimSchemaResource" } } },
+            },
+            404: { description: "Schema not found" },
+          },
+        },
+      },
+      "/scim/v2/ResourceTypes": {
+        get: {
+          tags: ["SCIM Metadata"],
+          summary: "List supported SCIM resource types",
+          security: [{ ScimBearerAuth: [] }],
+          responses: {
+            200: {
+              description: "SCIM resource type list",
+              content: { "application/scim+json": { schema: { $ref: "#/components/schemas/ScimListResponse" } } },
+            },
+          },
+        },
+      },
+      "/scim/v2/ResourceTypes/{id}": {
+        get: {
+          tags: ["SCIM Metadata"],
+          summary: "Get a SCIM resource type",
+          security: [{ ScimBearerAuth: [] }],
+          parameters: [
+            {
+              name: "id",
+              in: "path",
+              required: true,
+              schema: { type: "string", enum: ["User", "Group"] },
+            },
+          ],
+          responses: {
+            200: {
+              description: "SCIM resource type",
+              content: { "application/scim+json": { schema: { $ref: "#/components/schemas/ScimResourceType" } } },
+            },
+            404: { description: "ResourceType not found" },
+          },
         },
       },
       "/scim/v2/Users": {

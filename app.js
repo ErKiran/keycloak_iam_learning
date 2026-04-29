@@ -21,6 +21,7 @@ const { login, callback } = require("./app/login");
 const { logout } = require("./app/logout");
 const scimUsers = require("./app/scim_users");
 const scimGroups = require("./app/scim_groups");
+const scimMetadata = require("./app/scim_metadata");
 const { swaggerJson, swaggerUi } = require("./app/swagger");
 
 const app = express();
@@ -52,6 +53,7 @@ app.get("/saml/login", samlLogin);
 app.post("/saml/login", samlLoginPost);
 app.post("/saml/acs", samlAcs);
 app.get("/saml/metadata", samlMetadata);
+app.use("/scim/v2", scimMetadata);
 app.use("/scim/v2", scimUsers);
 app.use("/scim/v2", scimGroups);
 app.post('/transfer', transfer)
