@@ -2,6 +2,7 @@ const {
     getUserRoles,
     getUsername,
     READBALANCE,
+    USERLIST,
     getDashboardRedirect,
 } = require("../helper");
 
@@ -19,12 +20,13 @@ function dashboard(req, res) {
     }
     
     // If user should access a different dashboard, redirect them
-    if (dashboardRedirect !== "/dashboard") {
+    // Exception: Tellers can view customer details if a user param is provided
+    if (dashboardRedirect !== "/dashboard" && !(roles.includes(USERLIST) && req.query.user)) {
         return res.redirect(dashboardRedirect);
     }
 
-    // User is authorized for customer dashboard
-    const username = getUsername(req);
+    // User is authorized for customer dashboard (or teller viewing customer details)
+    const username = req.query.user || getUsername(req);
     const balance = getOrInitBalance(username);
 
     res.render("dashboard", {

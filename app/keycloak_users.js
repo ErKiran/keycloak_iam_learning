@@ -296,7 +296,32 @@ async function getUserRolesFromKeycloak({ username, email }) {
   }
 }
 
+async function getAllKeycloakUsers() {
+  try {
+    const accessToken = await getAdminAccessToken();
+    const base = `${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users`;
+    
+    const response = await axios.get(base, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      params: { max: 1000 }, // Fetch up to 1000 users
+      timeout: 10000,
+    });
+
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (err) {
+    const status = err?.response?.status;
+    if (status === 403) {
+      throw new Error(
+        "Keycloak lookup client is missing permission to read users. Grant realm-management view-users."
+      );
+    }
+    console.error("[Keycloak] Error fetching all users:", err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   keycloakUserExists,
   getUserRolesFromKeycloak,
+  getAllKeycloakUsers,
 };

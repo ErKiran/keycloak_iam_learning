@@ -15,7 +15,7 @@ const {
 } = require("./app/admin");
 const { samlLogin, samlLoginPost, samlAcs, samlMetadata } = require("./app/saml");
 const { initDb } = require("./app/db");
-const {tellerDashboard, tellerViewCustomer} = require("./app/teller")
+const {tellerDashboard, exportUsers} = require("./app/teller")
 const { requireLogin } = require("./helper");
 const { login, callback } = require("./app/login");
 const { logout } = require("./app/logout");
@@ -63,7 +63,7 @@ app.post("/admin/saml/:id/toggle", requireLogin, toggleSamlConfig)
 
 app.get("/teller", requireLogin, tellerDashboard);
 
-app.get("/teller/users/:username", requireLogin, tellerViewCustomer);
+app.get("/teller/export", requireLogin, exportUsers);
 
 app.get("/logout", logout);
 

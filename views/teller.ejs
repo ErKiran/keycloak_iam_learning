@@ -61,19 +61,29 @@
         View a customer profile (demo). Attempting to transfer money on behalf of customer Blocked (RBAC).
       </div>
 
+
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <a class="btn" href="/teller/export?format=json" style="background:rgba(79,140,255,.2);border-color:rgba(79,140,255,.3)">📄 Export as JSON</a>
+        <a class="btn" href="/teller/export?format=csv" style="background:rgba(52,211,153,.15);border-color:rgba(52,211,153,.3)">📊 Export as CSV</a>
+      </div>
+
       <table>
         <thead>
           <tr>
-            <th>Name</th>
             <th>Username</th>
+            <th>Email</th>
+            <th>First Name</th>
+            <th>Last Name</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
           <% (customers || []).forEach(c => { %>
             <tr>
-              <td><%= c.name %></td>
               <td><code><%= c.username %></code></td>
+              <td><code><%= c.email || "-" %></code></td>
+              <td><%= c.firstName || "-" %></td>
+              <td><%= c.lastName || "-" %></td>
               <td>
                 <a class="btn" href="/dashboard?user=<%= encodeURIComponent(c.username) %>">👁 View details</a>
               </td>
