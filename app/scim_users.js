@@ -1,0 +1,293 @@
+const express = require("express");
+const {
+  getKeycloakUserById,
+  searchKeycloakUsers,
+  countKeycloakUsers,
+  createKeycloakUser,
+  updateKeycloakUser,
+  deleteKeycloakUser,
+} = require("./keycloak_users");
+
+const router = express.Router();
+
+const USER_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:User";
+const LIST_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:ListResponse";
+const PATCH_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
+const ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error";
+
+function scimLocation(req, id) {
+  return `${req.protocol}://${req.get("host")}/scim/v2/Users/${encodeURIComponent(id)}`;
+}
+
+function keycloakToScimUser(req, user) {
+  const emails = [];
+  if (user.email) {
+    emails.push({
+      value: user.email,
+      primary: true,
+      type: "work",
+    });
+  }
+
+  return {
+    schemas: [USER_SCHEMA],
+    id: user.id,
+    userName: user.username,
+    name: {
+      givenName: user.firstName || "",
+      familyName: user.lastName || "",
+    },
+    active: user.enabled !== false,
+    emails,
+    meta: {
+      resourceType: "User",
+      created: user.createdTimestamp ? new Date(user.createdTimestamp).toISOString() : undefined,
+      location: scimLocation(req, user.id),
+    },
+  };
+}
+
+function firstEmail(scimUser = {}) {
+  if (typeof scimUser.email === "string") return scimUser.email;
+  if (Object.prototype.hasOwnProperty.call(scimUser, "emails") && scimUser.emails?.length === 0) return null;
+  if (!Array.isArray(scimUser.emails)) return undefined;
+
+  const primary = scimUser.emails.find((email) => email?.primary);
+  return (primary || scimUser.emails[0])?.value;
+}
+
+function scimToKeycloakUser(scimUser = {}, existing = {}) {
+  const name = scimUser.name || {};
+  const email = firstEmail(scimUser);
+
+  return {
+    ...existing,
+    username: scimUser.userName ?? existing.username,
+    email: email !== undefined ? email : existing.email,
+    firstName: Object.prototype.hasOwnProperty.call(name, "givenName") ? name.givenName : existing.firstName,
+    lastName: Object.prototype.hasOwnProperty.call(name, "familyName") ? name.familyName : existing.lastName,
+    enabled: typeof scimUser.active === "boolean" ? scimUser.active : existing.enabled ?? true,
+  };
+}
+
+function scimError(res, status, detail, scimType) {
+  return res.status(status).type("application/scim+json").json({
+    schemas: [ERROR_SCHEMA],
+    status: String(status),
+    ...(scimType ? { scimType } : {}),
+    detail,
+  });
+}
+
+function parseFilter(filter) {
+  if (!filter) return {};
+
+  const match = String(filter).match(/^\s*(userName|emails\.value)\s+eq\s+"([^"]+)"\s*$/i);
+  if (!match) {
+    const err = new Error('Only simple filters like userName eq "alice" or emails.value eq "alice@example.com" are supported');
+    err.status = 400;
+    err.scimType = "invalidFilter";
+    throw err;
+  }
+
+  return match[1].toLowerCase() === "username"
+    ? { username: match[2] }
+    : { email: match[2] };
+}
+
+function setPath(user, path, value) {
+  switch (String(path || "").toLowerCase()) {
+    case "username":
+      user.userName = value;
+      break;
+    case "name.givenname":
+      user.name = { ...(user.name || {}), givenName: value };
+      break;
+    case "name.familyname":
+      user.name = { ...(user.name || {}), familyName: value };
+      break;
+    case "active":
+      user.active = value;
+      break;
+    case "emails":
+      user.emails = Array.isArray(value) ? value : [value];
+      break;
+    case "emails.value":
+    case 'emails[type eq "work"].value':
+      user.emails = [{ value, primary: true, type: "work" }];
+      break;
+    default: {
+      const err = new Error(`Unsupported PATCH path: ${path}`);
+      err.status = 400;
+      err.scimType = "invalidPath";
+      throw err;
+    }
+  }
+}
+
+function removePath(user, path) {
+  switch (String(path || "").toLowerCase()) {
+    case "name.givenname":
+      user.name = { ...(user.name || {}), givenName: null };
+      break;
+    case "name.familyname":
+      user.name = { ...(user.name || {}), familyName: null };
+      break;
+    case "emails":
+    case "emails.value":
+    case 'emails[type eq "work"].value':
+      user.emails = [];
+      break;
+    default: {
+      const err = new Error(`Unsupported remove path: ${path}`);
+      err.status = 400;
+      err.scimType = "invalidPath";
+      throw err;
+    }
+  }
+}
+
+function applyPatchOperations(scimUser, operations = []) {
+  if (!Array.isArray(operations)) {
+    const err = new Error("PATCH requires an Operations array");
+    err.status = 400;
+    err.scimType = "invalidSyntax";
+    throw err;
+  }
+
+  const next = JSON.parse(JSON.stringify(scimUser));
+
+  for (const operation of operations) {
+    const op = String(operation.op || "").toLowerCase();
+    if (op === "add" || op === "replace") {
+      if (operation.path) {
+        setPath(next, operation.path, operation.value);
+      } else if (operation.value && typeof operation.value === "object") {
+        Object.entries(operation.value).forEach(([path, value]) => setPath(next, path, value));
+      } else {
+        const err = new Error("PATCH add/replace requires a path or object value");
+        err.status = 400;
+        err.scimType = "invalidSyntax";
+        throw err;
+      }
+      continue;
+    }
+
+    if (op === "remove") {
+      removePath(next, operation.path);
+      continue;
+    }
+
+    const err = new Error(`Unsupported PATCH operation: ${operation.op}`);
+    err.status = 400;
+    err.scimType = "invalidSyntax";
+    throw err;
+  }
+
+  return next;
+}
+
+async function handleKeycloakError(res, err) {
+  const status = err?.response?.status;
+
+  if (status === 404) {
+    return scimError(res, 404, "User not found");
+  }
+
+  if (status === 409) {
+    return scimError(res, 409, "User already exists", "uniqueness");
+  }
+
+  if (status === 400) {
+    return scimError(res, 400, err?.response?.data?.errorMessage || "Invalid user request", "invalidValue");
+  }
+
+  if (status === 401 || status === 403) {
+    return scimError(res, status, "Keycloak admin client is not authorized to manage users");
+  }
+
+  return scimError(res, err.status || 500, err.message || "SCIM request failed", err.scimType);
+}
+
+router.use((req, res, next) => {
+  res.type("application/scim+json");
+
+  if (process.env.SCIM_BEARER_TOKEN) {
+    const expected = `Bearer ${process.env.SCIM_BEARER_TOKEN}`;
+    if (req.get("authorization") !== expected) {
+      return scimError(res, 401, "Missing or invalid SCIM bearer token");
+    }
+  }
+
+  next();
+});
+
+router.get("/Users", async (req, res) => {
+  try {
+    const startIndex = Math.max(parseInt(req.query.startIndex, 10) || 1, 1);
+    const count = Math.min(Math.max(parseInt(req.query.count, 10) || 100, 1), 1000);
+    const query = parseFilter(req.query.filter);
+    const users = await searchKeycloakUsers({ first: startIndex - 1, max: count, ...query });
+    const totalResults = await countKeycloakUsers(query);
+
+    return res.json({
+      schemas: [LIST_SCHEMA],
+      totalResults,
+      startIndex,
+      itemsPerPage: users.length,
+      Resources: users.map((user) => keycloakToScimUser(req, user)),
+    });
+  } catch (err) {
+    return handleKeycloakError(res, err);
+  }
+});
+
+router.post("/Users", async (req, res) => {
+  try {
+    if (!req.body?.userName) {
+      return scimError(res, 400, "userName is required", "invalidValue");
+    }
+
+    const created = await createKeycloakUser(scimToKeycloakUser(req.body));
+    const scimUser = keycloakToScimUser(req, created);
+    return res.status(201).set("Location", scimUser.meta.location).json(scimUser);
+  } catch (err) {
+    return handleKeycloakError(res, err);
+  }
+});
+
+router.get("/Users/:id", async (req, res) => {
+  try {
+    const user = await getKeycloakUserById(req.params.id);
+    return res.json(keycloakToScimUser(req, user));
+  } catch (err) {
+    return handleKeycloakError(res, err);
+  }
+});
+
+router.patch("/Users/:id", async (req, res) => {
+  try {
+    const schemas = Array.isArray(req.body?.schemas) ? req.body.schemas : [];
+    if (schemas.length > 0 && !schemas.includes(PATCH_SCHEMA)) {
+      return scimError(res, 400, "PATCH body must use the SCIM PatchOp schema", "invalidSyntax");
+    }
+
+    const existing = await getKeycloakUserById(req.params.id);
+    const patchedScim = applyPatchOperations(keycloakToScimUser(req, existing), req.body?.Operations);
+    const updated = await updateKeycloakUser(req.params.id, scimToKeycloakUser(patchedScim, existing));
+    return res.json(keycloakToScimUser(req, updated));
+  } catch (err) {
+    return handleKeycloakError(res, err);
+  }
+});
+
+router.delete("/Users/:id", async (req, res) => {
+  try {
+    await deleteKeycloakUser(req.params.id);
+    return res.status(204).send();
+  } catch (err) {
+    return handleKeycloakError(res, err);
+  }
+});
+
+module.exports = router;

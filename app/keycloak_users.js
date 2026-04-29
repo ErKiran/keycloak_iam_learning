@@ -320,8 +320,106 @@ async function getAllKeycloakUsers() {
   }
 }
 
+function usersBaseUrl() {
+  return `${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users`;
+}
+
+async function getKeycloakUserById(userId) {
+  const accessToken = await getAdminAccessToken();
+  const response = await axios.get(`${usersBaseUrl()}/${encodeURIComponent(userId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    timeout: 10000,
+  });
+
+  return response.data;
+}
+
+async function searchKeycloakUsers({ first = 0, max = 100, username, email } = {}) {
+  const accessToken = await getAdminAccessToken();
+  const params = { first, max };
+
+  if (username) {
+    params.username = username;
+    params.exact = true;
+  }
+
+  if (email) {
+    params.email = email;
+    params.exact = true;
+  }
+
+  const response = await axios.get(usersBaseUrl(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params,
+    timeout: 10000,
+  });
+
+  return Array.isArray(response.data) ? response.data : [];
+}
+
+async function countKeycloakUsers({ username, email } = {}) {
+  const accessToken = await getAdminAccessToken();
+  const params = {};
+
+  if (username) {
+    params.username = username;
+  }
+
+  if (email) {
+    params.email = email;
+  }
+
+  const response = await axios.get(`${usersBaseUrl()}/count`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    params,
+    timeout: 10000,
+  });
+
+  return Number(response.data) || 0;
+}
+
+async function createKeycloakUser(user) {
+  const accessToken = await getAdminAccessToken();
+  const response = await axios.post(usersBaseUrl(), user, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    timeout: 10000,
+  });
+
+  const location = response.headers?.location || "";
+  const userId = location.split("/").filter(Boolean).pop();
+  if (!userId) {
+    throw new Error("Keycloak created the user but did not return a Location header");
+  }
+
+  return getKeycloakUserById(userId);
+}
+
+async function updateKeycloakUser(userId, user) {
+  const accessToken = await getAdminAccessToken();
+  await axios.put(`${usersBaseUrl()}/${encodeURIComponent(userId)}`, user, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    timeout: 10000,
+  });
+
+  return getKeycloakUserById(userId);
+}
+
+async function deleteKeycloakUser(userId) {
+  const accessToken = await getAdminAccessToken();
+  await axios.delete(`${usersBaseUrl()}/${encodeURIComponent(userId)}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    timeout: 10000,
+  });
+}
+
 module.exports = {
   keycloakUserExists,
   getUserRolesFromKeycloak,
   getAllKeycloakUsers,
+  getKeycloakUserById,
+  searchKeycloakUsers,
+  countKeycloakUsers,
+  createKeycloakUser,
+  updateKeycloakUser,
+  deleteKeycloakUser,
 };

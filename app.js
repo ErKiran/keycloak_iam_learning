@@ -19,6 +19,9 @@ const {tellerDashboard, exportUsers} = require("./app/teller")
 const { requireLogin } = require("./helper");
 const { login, callback } = require("./app/login");
 const { logout } = require("./app/logout");
+const scimUsers = require("./app/scim_users");
+const scimGroups = require("./app/scim_groups");
+const { swaggerJson, swaggerUi } = require("./app/swagger");
 
 const app = express();
 app.use(express.json());
@@ -43,10 +46,14 @@ const {
 } = process.env;
 
 app.get("/", login);
+app.get("/docs", swaggerUi);
+app.get("/swagger.json", swaggerJson);
 app.get("/saml/login", samlLogin);
 app.post("/saml/login", samlLoginPost);
 app.post("/saml/acs", samlAcs);
 app.get("/saml/metadata", samlMetadata);
+app.use("/scim/v2", scimUsers);
+app.use("/scim/v2", scimGroups);
 app.post('/transfer', transfer)
 app.get("/callback", callback);
 
