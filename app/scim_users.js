@@ -265,6 +265,26 @@ router.get("/Users/:id", async (req, res) => {
   }
 });
 
+router.put("/Users/:id", async (req, res) => {
+  try {
+    const schemas = Array.isArray(req.body?.schemas) ? req.body.schemas : [];
+    if (schemas.length > 0 && !schemas.includes(USER_SCHEMA)) {
+      return scimError(res, 400, "PUT body must use the SCIM User schema", "invalidSyntax");
+    }
+
+    if (req.body?.id && req.body.id !== req.params.id) {
+      return scimError(res, 400, "Request body id must match the URL id", "invalidValue");
+    }
+
+    const existing = await getKeycloakUserById(req.params.id);
+    const updated = await updateKeycloakUser(req.params.id, scimToKeycloakUser(req.body, existing));
+    const scimUser = keycloakToScimUser(req, updated);
+    return res.set("Location", scimUser.meta.location).json(scimUser);
+  } catch (err) {
+    return handleKeycloakError(res, err);
+  }
+});
+
 router.patch("/Users/:id", async (req, res) => {
   try {
     const schemas = Array.isArray(req.body?.schemas) ? req.body.schemas : [];

@@ -552,6 +552,22 @@ function buildOpenApi(req) {
             404: { description: "Not found" },
           },
         },
+        put: {
+          tags: ["SCIM Users"],
+          summary: "Replace SCIM user",
+          description: "Full user update used by SCIM clients such as Okta.",
+          security: [{ ScimBearerAuth: [] }],
+          parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+          requestBody: {
+            required: true,
+            content: { "application/scim+json": { schema: { $ref: "#/components/schemas/ScimUser" } } },
+          },
+          responses: {
+            200: { description: "Updated user", content: { "application/scim+json": { schema: { $ref: "#/components/schemas/ScimUser" } } } },
+            400: { description: "Invalid user" },
+            404: { description: "Not found" },
+          },
+        },
         patch: {
           tags: ["SCIM Users"],
           summary: "Patch SCIM user",
