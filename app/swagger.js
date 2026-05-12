@@ -1,5 +1,5 @@
 function buildOpenApi(req) {
-  const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+  const baseUrl = process.env.APP_BASE_URL || `https://${req.get("host")}`;
 
   return {
     openapi: "3.0.3",
@@ -754,7 +754,7 @@ function buildOpenApi(req) {
         post: {
           tags: ["SSF"],
           summary: "Receive pushed Security Event Token",
-          description: "Accepts push-based SET delivery using application/secevent+jwt and returns 202 Accepted on success. Configure SSF_JWKS_URL to verify the SET signature against the transmitter JWKS.",
+          description: "Accepts push-based SET delivery using application/secevent+jwt and returns 202 Accepted on success.",
           security: [{ SsfBearerAuth: [] }],
           requestBody: {
             required: true,

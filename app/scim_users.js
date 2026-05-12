@@ -244,6 +244,7 @@ router.get("/Users", async (req, res) => {
 
 router.post("/Users", async (req, res) => {
   try {
+    console.log("Create user request body:", JSON.stringify(req.body, null, 2));
     if (!req.body?.userName) {
       return scimError(res, 400, "userName is required", "invalidValue");
     }
