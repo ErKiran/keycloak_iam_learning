@@ -23,6 +23,7 @@ const scimUsers = require("./app/scim_users");
 const scimGroups = require("./app/scim_groups");
 const scimMetadata = require("./app/scim_metadata");
 const { swaggerJson, swaggerUi } = require("./app/swagger");
+const ssf = require("./app/ssf");
 
 const app = express();
 app.use(express.json());
@@ -49,6 +50,7 @@ const {
 app.get("/", login);
 app.get("/docs", swaggerUi);
 app.get("/swagger.json", swaggerJson);
+app.use(ssf);
 app.get("/saml/login", samlLogin);
 app.post("/saml/login", samlLoginPost);
 app.post("/saml/acs", samlAcs);

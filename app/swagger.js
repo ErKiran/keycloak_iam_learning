@@ -15,6 +15,7 @@ function buildOpenApi(req) {
       { name: "Admin" },
       { name: "Banking" },
       { name: "Teller" },
+      { name: "SSF" },
       { name: "SCIM Metadata" },
       { name: "SCIM Users" },
       { name: "SCIM Groups" },
@@ -30,6 +31,11 @@ function buildOpenApi(req) {
           type: "http",
           scheme: "bearer",
           description: "Required when SCIM_BEARER_TOKEN is configured.",
+        },
+        SsfBearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          description: "Required when SSF_BEARER_TOKEN or SSF_RECEIVER_TOKEN is configured.",
         },
       },
       schemas: {
@@ -55,6 +61,57 @@ function buildOpenApi(req) {
             to: { type: "string" },
             amount: { type: "number" },
             newBalance: { type: "number" },
+          },
+        },
+        SsfConfiguration: {
+          type: "object",
+          properties: {
+            issuer: { type: "string" },
+            spec_version: { type: "string", example: "1_0-04" },
+            delivery_methods_supported: {
+              type: "array",
+              items: { type: "string" },
+              example: ["urn:ietf:rfc:8935"],
+            },
+            push_endpoint: { type: "string" },
+            events_supported: {
+              type: "array",
+              items: { type: "string" },
+              example: [
+                "https://schemas.openid.net/secevent/caep/event-type/session-revoked",
+                "https://schemas.openid.net/secevent/caep/event-type/credential-change",
+              ],
+            },
+            authorization_schemes: { type: "array", items: { type: "object" } },
+          },
+        },
+        SsfEventLog: {
+          type: "object",
+          properties: {
+            total: { type: "integer" },
+            events: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  issuer: { type: "string" },
+                  audience: {},
+                  issuedAt: { type: "integer" },
+                  eventTypes: { type: "array", items: { type: "string" } },
+                  subject: {},
+                  receivedAt: { type: "string", format: "date-time" },
+                  payload: { type: "object" },
+                },
+              },
+            },
+          },
+        },
+        SsfError: {
+          type: "object",
+          properties: {
+            err: { type: "string", example: "invalid_request" },
+            description: { type: "string" },
           },
         },
         ScimError: {
@@ -666,6 +723,75 @@ function buildOpenApi(req) {
           tags: ["Admin"],
           summary: "Swagger UI",
           responses: { 200: { description: "Swagger UI page" } },
+        },
+      },
+      "/.well-known/ssf-configuration": {
+        get: {
+          tags: ["SSF"],
+          summary: "SSF configuration metadata",
+          description: "Discovery metadata for Neobank SSF capabilities and the push SET endpoint.",
+          responses: {
+            200: {
+              description: "SSF configuration",
+              content: { "application/json": { schema: { $ref: "#/components/schemas/SsfConfiguration" } } },
+            },
+          },
+        },
+      },
+      "/ssf/configuration": {
+        get: {
+          tags: ["SSF"],
+          summary: "SSF configuration metadata alias",
+          responses: {
+            200: {
+              description: "SSF configuration",
+              content: { "application/json": { schema: { $ref: "#/components/schemas/SsfConfiguration" } } },
+            },
+          },
+        },
+      },
+      "/ssf/events": {
+        post: {
+          tags: ["SSF"],
+          summary: "Receive pushed Security Event Token",
+          description: "Accepts push-based SET delivery using application/secevent+jwt and returns 202 Accepted on success.",
+          security: [{ SsfBearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/secevent+jwt": { schema: { type: "string", description: "Security Event Token JWT" } },
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    set_token: { type: "string" },
+                    jwt: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            202: { description: "SET accepted" },
+            400: {
+              description: "Invalid SET",
+              content: { "application/json": { schema: { $ref: "#/components/schemas/SsfError" } } },
+            },
+            401: { description: "Invalid SSF bearer token" },
+          },
+        },
+        get: {
+          tags: ["SSF"],
+          summary: "List recently received SSF events",
+          description: "Debug endpoint that returns the most recent in-memory SET payloads received by the app.",
+          security: [{ SsfBearerAuth: [] }],
+          responses: {
+            200: {
+              description: "Received SSF events",
+              content: { "application/json": { schema: { $ref: "#/components/schemas/SsfEventLog" } } },
+            },
+            401: { description: "Invalid SSF bearer token" },
+          },
         },
       },
     },
