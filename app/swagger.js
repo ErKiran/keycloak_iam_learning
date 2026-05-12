@@ -754,7 +754,7 @@ function buildOpenApi(req) {
         post: {
           tags: ["SSF"],
           summary: "Receive pushed Security Event Token",
-          description: "Accepts push-based SET delivery using application/secevent+jwt and returns 202 Accepted on success.",
+          description: "Accepts push-based SET delivery using application/secevent+jwt and returns 202 Accepted on success. Configure SSF_JWKS_URL to verify the SET signature against the transmitter JWKS.",
           security: [{ SsfBearerAuth: [] }],
           requestBody: {
             required: true,

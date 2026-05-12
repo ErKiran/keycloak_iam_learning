@@ -1,4 +1,6 @@
 const express = require("express");
+const axios = require("axios");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
 const router = express.Router();
@@ -8,8 +10,13 @@ const CAEP_SESSION_REVOKED = "https://schemas.openid.net/secevent/caep/event-typ
 const CAEP_CREDENTIAL_CHANGE = "https://schemas.openid.net/secevent/caep/event-type/credential-change";
 const SSF_VERIFICATION = "https://schemas.openid.net/secevent/ssf/event-type/verification";
 const MAX_EVENTS = 100;
+const JWKS_CACHE_MS = 5 * 60 * 1000;
 
 const receivedEvents = [];
+let jwksCache = {
+  fetchedAt: 0,
+  keys: [],
+};
 
 function resolveBaseUrl(req) {
   return process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
@@ -17,6 +24,62 @@ function resolveBaseUrl(req) {
 
 function bearerToken() {
   return process.env.SSF_BEARER_TOKEN || process.env.SSF_RECEIVER_TOKEN || "";
+}
+
+function allowedAlgorithms() {
+  return String(process.env.SSF_ALLOWED_ALGORITHMS || "RS256")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function getJwks() {
+  const jwksUrl = process.env.SSF_JWKS_URL;
+  if (!jwksUrl) {
+    throw new Error("SSF_JWKS_URL is not configured");
+  }
+
+  const now = Date.now();
+  if (jwksCache.keys.length > 0 && now - jwksCache.fetchedAt < JWKS_CACHE_MS) {
+    return jwksCache.keys;
+  }
+
+  const response = await axios.get(jwksUrl, { timeout: 10000 });
+  const keys = Array.isArray(response.data?.keys) ? response.data.keys : [];
+  jwksCache = { fetchedAt: now, keys };
+  return keys;
+}
+
+function jwkToPem(jwk) {
+  return crypto.createPublicKey({ key: jwk, format: "jwk" }).export({
+    type: "spki",
+    format: "pem",
+  });
+}
+
+async function verifySetToken(setToken, req) {
+  const jwksUrl = process.env.SSF_JWKS_URL;
+  if (!jwksUrl) {
+    return jwt.decode(setToken, { complete: true })?.payload;
+  }
+
+  const decoded = jwt.decode(setToken, { complete: true });
+  const kid = decoded?.header?.kid;
+  const alg = decoded?.header?.alg;
+  if (!kid) throw new Error("SET header is missing kid");
+  if (!allowedAlgorithms().includes(alg)) throw new Error("SET uses an unsupported signing algorithm");
+
+  const keys = await getJwks();
+  const jwk = keys.find((key) => key.kid === kid);
+  if (!jwk) throw new Error("No matching key found in SSF_JWKS_URL");
+
+  const expectedAudience = process.env.SSF_EXPECTED_AUDIENCE || (decoded?.payload?.aud ? resolveBaseUrl(req) : undefined);
+
+  return jwt.verify(setToken, jwkToPem(jwk), {
+    algorithms: allowedAlgorithms(),
+    issuer: process.env.SSF_EXPECTED_ISSUER || undefined,
+    audience: expectedAudience,
+  });
 }
 
 function requireSsfBearer(req, res, next) {
@@ -106,17 +169,21 @@ function setDeliveryError(res, code, description) {
 router.get("/.well-known/ssf-configuration", ssfConfiguration);
 router.get("/ssf/configuration", ssfConfiguration);
 
-router.post("/ssf/events", requireSsfBearer, setBodyParser, (req, res) => {
+router.post("/ssf/events", requireSsfBearer, setBodyParser, async (req, res) => {
   const setToken = extractSetToken(req);
   if (!setToken) {
     return setDeliveryError(res, "invalid_request", "Missing Security Event Token");
   }
 
-  const decoded = jwt.decode(setToken, { complete: true });
-  const payload = decoded?.payload;
-  const validationError = validateSetClaims(payload, req);
-  if (validationError) {
-    return setDeliveryError(res, "invalid_request", validationError);
+  let payload;
+  try {
+    payload = await verifySetToken(setToken, req);
+    const validationError = validateSetClaims(payload, req);
+    if (validationError) {
+      return setDeliveryError(res, "invalid_request", validationError);
+    }
+  } catch (err) {
+    return setDeliveryError(res, "invalid_request", err.message || "SET signature verification failed");
   }
 
   receivedEvents.unshift(eventSummary(payload));
