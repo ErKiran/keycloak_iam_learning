@@ -295,7 +295,7 @@
             </div>
           <% } %>
 
-          <form class="fields" method="POST" action="/admin/saml">
+          <form class="fields" method="POST" action="/admin/saml" enctype="multipart/form-data">
             <input type="hidden" name="configId" value="<%= samlConfig?.id || '' %>" />
 
             <div>
@@ -315,11 +315,32 @@
 
             <div>
               <label for="x509Certificate">Certificate</label>
-              <textarea id="x509Certificate" name="x509Certificate" required placeholder="-----BEGIN CERTIFICATE-----"><%= samlConfig?.x509Certificate || '' %></textarea>
+              <textarea id="x509Certificate" name="x509Certificate" placeholder="-----BEGIN CERTIFICATE-----"><%= samlConfig?.x509Certificate || '' %></textarea>
+            </div>
+
+            <div>
+              <label for="x509CertificateFile">Or upload a certificate file</label>
+              <input id="x509CertificateFile" name="x509CertificateFile" type="file" accept=".pem,.crt,.cer,.cert,.txt" />
             </div>
 
             <button class="submit" type="submit">Save SSO Config</button>
           </form>
+          <script>
+            (function () {
+              const fileInput = document.getElementById("x509CertificateFile");
+              const certTextarea = document.getElementById("x509Certificate");
+
+              function syncRequiredState() {
+                const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+                certTextarea.required = !hasFile;
+              }
+
+              if (fileInput && certTextarea) {
+                fileInput.addEventListener("change", syncRequiredState);
+                syncRequiredState();
+              }
+            })();
+          </script>
         <% } else { %>
           <div class="lockBanner">Request one of these permissions: saml:setup, devconsole:setup, or admin.</div>
         <% } %>

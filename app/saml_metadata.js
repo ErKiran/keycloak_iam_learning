@@ -25,7 +25,9 @@ function toPemCertificate(cert = "") {
   ].join("\n");
 }
 
-function pickSigningCertificate(keyDescriptors = []) {
+function pickSigningCertificates(keyDescriptors = []) {
+  const certificates = [];
+
   for (const descriptor of keyDescriptors) {
     const use = descriptor?.$?.use;
     if (use && use !== "signing") continue;
@@ -37,13 +39,13 @@ function pickSigningCertificate(keyDescriptors = []) {
         const certs = ensureArray(x509Data?.X509Certificate);
         for (const cert of certs) {
           const pem = toPemCertificate(cert);
-          if (pem) return pem;
+          if (pem) certificates.push(pem);
         }
       }
     }
   }
 
-  return "";
+  return [...new Set(certificates)];
 }
 
 function pickSsoUrl(singleSignOnServices = []) {
@@ -79,12 +81,14 @@ async function parseIdpMetadataXml(xml) {
   }
 
   const ssoUrl = pickSsoUrl(idpDescriptor?.SingleSignOnService || idpDescriptor?.["md:SingleSignOnService"]);
-  const cert = pickSigningCertificate(idpDescriptor?.KeyDescriptor || idpDescriptor?.["md:KeyDescriptor"]);
+  const certs = pickSigningCertificates(idpDescriptor?.KeyDescriptor || idpDescriptor?.["md:KeyDescriptor"]);
+  const certBundle = certs.join("\n\n");
 
   return {
     idpEntityId: entityID,
     ssoUrl,
-    x509Certificate: cert,
+    x509Certificate: certBundle,
+    x509Certificates: certs,
   };
 }
 

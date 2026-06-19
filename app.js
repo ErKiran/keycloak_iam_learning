@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const passport = require("passport");
+const multer = require("multer");
 
 const session = require("express-session");
 const { transfer, authorizeTransfer, transferSuccess, resumeTransfer } = require("./app/transfer");
@@ -26,6 +27,7 @@ const { swaggerJson, swaggerUi } = require("./app/swagger");
 const ssf = require("./app/ssf");
 
 const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
 app.use(express.json({
   type:["application/json", "application/scim+json"]
 }));
@@ -69,7 +71,7 @@ app.get("/callback", callback);
 
 app.get("/dashboard", requireLogin, dashboard)
 app.get("/admin/dashboard", requireLogin, adminDashboard)
-app.post("/admin/saml", requireLogin, saveSamlConfig)
+app.post("/admin/saml", requireLogin, upload.single("x509CertificateFile"), saveSamlConfig)
 app.post("/admin/saml/new", requireLogin, createNewSamlConfig)
 app.post("/admin/saml/:id/use", requireLogin, useSamlConfig)
 app.post("/admin/saml/:id/toggle", requireLogin, toggleSamlConfig)
@@ -83,6 +85,31 @@ app.get("/logout", logout);
 app.get("/resume-transfer", requireLogin, resumeTransfer)
 
 app.get("/transfer-success", requireLogin, transferSuccess);
+
+app.use((err, req, res, next) => {
+  const debugValue = String(process.env.SAML_DEBUG || "").toLowerCase();
+  const samlDebugEnabled =
+    debugValue === "true" ||
+    debugValue === "1" ||
+    debugValue === "yes" ||
+    (!debugValue && String(process.env.NODE_ENV || "").toLowerCase() !== "production");
+
+  if (samlDebugEnabled && req?.originalUrl?.startsWith("/saml")) {
+    console.error("[SAML DEBUG] unhandled error", {
+      method: req.method,
+      path: req.originalUrl,
+      host: req.get("host"),
+      message: err?.message || String(err),
+      stack: err?.stack || "",
+      bodyKeys: Object.keys(req.body || {}),
+      hasSamlResponse: Boolean(req.body?.SAMLResponse),
+      relayState: req.body?.RelayState || "",
+    });
+  }
+
+  if (res.headersSent) return next(err);
+  return res.status(500).send("Internal Server Error");
+});
 
 initDb()
   .then(() => {

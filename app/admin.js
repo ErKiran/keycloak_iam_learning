@@ -24,6 +24,40 @@ function resolveBaseUrl(req) {
   return process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
 }
 
+function normalizeUploadedCertificate(file) {
+  if (!file?.buffer || !file.buffer.length) return "";
+
+  const text = file.buffer.toString("utf8").trim();
+  if (text.includes("-----BEGIN CERTIFICATE-----")) {
+    return text;
+  }
+
+  const normalized = text.replace(/\s+/g, "");
+  if (normalized && /^[A-Za-z0-9+/=]+$/.test(normalized)) {
+    return [
+      "-----BEGIN CERTIFICATE-----",
+      ...(normalized.match(/.{1,64}/g) || []),
+      "-----END CERTIFICATE-----",
+    ].join("\n");
+  }
+
+  const base64 = file.buffer.toString("base64");
+  return [
+    "-----BEGIN CERTIFICATE-----",
+    ...(base64.match(/.{1,64}/g) || []),
+    "-----END CERTIFICATE-----",
+  ].join("\n");
+}
+
+function isSamlDebugEnabled() {
+  return String(process.env.SAML_DEBUG || "").toLowerCase() === "true";
+}
+
+function samlDebug(step, details = {}) {
+  if (!isSamlDebugEnabled()) return;
+  console.log(`[SAML DEBUG] ${step}`, details);
+}
+
 function canManageSamlFromRoles(roles = []) {
   return (
     roles.includes(SAML_SETUP) ||
@@ -84,6 +118,7 @@ async function saveSamlConfig(req, res) {
   const spEntityId = String(req.body?.spEntityId || "").trim();
   let ssoUrl = String(req.body?.ssoUrl || "").trim();
   let x509Certificate = String(req.body?.x509Certificate || "").trim();
+  const uploadedCertificate = normalizeUploadedCertificate(req.file);
   const nameIdFormat = String(req.body?.nameIdFormat || DEFAULT_NAME_ID_FORMAT).trim();
   const mapEmailClaim = String(req.body?.mapEmailClaim || "email").trim();
   const mapFirstNameClaim = String(req.body?.mapFirstNameClaim || "firstName").trim();
@@ -91,8 +126,22 @@ async function saveSamlConfig(req, res) {
   let idpEntityId = "";
   let metadataSource = "manual";
 
+  if (uploadedCertificate) {
+    samlDebug("step 2 uploaded certificate received", {
+      fileName: req.file?.originalname || "",
+      mimeType: req.file?.mimetype || "",
+      size: req.file?.size || 0,
+      normalizedLength: uploadedCertificate.length,
+    });
+    x509Certificate = uploadedCertificate;
+  }
+
   try {
     if (idpMetadataXml) {
+      samlDebug("step 3 parse metadata xml", {
+        source: "xml",
+        xmlLength: idpMetadataXml.length,
+      });
       const parsed = await parseIdpMetadataXml(idpMetadataXml);
       ssoUrl = String(parsed.ssoUrl || "").trim();
       x509Certificate = String(parsed.x509Certificate || "").trim();
@@ -103,6 +152,10 @@ async function saveSamlConfig(req, res) {
         idpMetadataUrl = "inline:xml";
       }
     } else if (idpMetadataUrl) {
+      samlDebug("step 3 fetch metadata url", {
+        source: "url",
+        idpMetadataUrl,
+      });
       const parsed = await fetchAndParseIdpMetadata(idpMetadataUrl);
       ssoUrl = String(parsed.ssoUrl || "").trim();
       x509Certificate = String(parsed.x509Certificate || "").trim();
@@ -115,8 +168,28 @@ async function saveSamlConfig(req, res) {
   }
 
   if (!spEntityId || !ssoUrl || !x509Certificate) {
-    return res.status(400).send("Missing required SAML fields. Provide SP entity ID and valid metadata (URL/XML) or manual SSO URL + certificate.");
+    samlDebug("step 4 validation failed", {
+      spEntityIdPresent: Boolean(spEntityId),
+      ssoUrlPresent: Boolean(ssoUrl),
+      x509CertificatePresent: Boolean(x509Certificate),
+      uploadedFilePresent: Boolean(req.file),
+      idpMetadataUrl,
+      metadataSource,
+    });
+    return res.status(400).send("Missing required SAML fields. Provide SP entity ID and valid metadata (URL/XML), a certificate upload, or manual SSO URL + certificate.");
   }
+
+  samlDebug("step 5 save config", {
+    configId,
+    displayName,
+    idpMetadataUrl,
+    metadataSource,
+    idpEntityId,
+    spEntityId,
+    ssoUrl,
+    x509CertificateLength: x509Certificate.length,
+    uploadedFilePresent: Boolean(req.file),
+  });
 
   await saveSamlConfigToDb({
     displayName,
