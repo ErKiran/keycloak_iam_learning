@@ -1,28 +1,14 @@
 const axios = require("axios");
 const { parseStringPromise } = require("xml2js");
+const { normalizeCertificateInput } = require("./x509_certificate");
 
 function ensureArray(value) {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
 }
 
-function cleanCertificate(cert = "") {
-  return String(cert || "")
-    .replace(/-----BEGIN CERTIFICATE-----/g, "")
-    .replace(/-----END CERTIFICATE-----/g, "")
-    .replace(/\s+/g, "")
-    .trim();
-}
-
 function toPemCertificate(cert = "") {
-  const normalized = cleanCertificate(cert);
-  if (!normalized) return "";
-  const lines = normalized.match(/.{1,64}/g) || [];
-  return [
-    "-----BEGIN CERTIFICATE-----",
-    ...lines,
-    "-----END CERTIFICATE-----",
-  ].join("\n");
+  return normalizeCertificateInput(cert);
 }
 
 function pickSigningCertificates(keyDescriptors = []) {

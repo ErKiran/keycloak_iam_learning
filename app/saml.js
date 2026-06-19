@@ -7,6 +7,7 @@ const {
 } = require("../helper");
 const { getActiveSamlConfig } = require("./saml_config_store");
 const { keycloakUserExists, getUserRolesFromKeycloak } = require("./keycloak_users");
+const { certificateSummary, normalizeCertificateBundle } = require("./x509_certificate");
 
 function isSamlDebugEnabled() {
   const value = String(process.env.SAML_DEBUG || "").toLowerCase();
@@ -21,7 +22,8 @@ function samlDebug(step, details = {}) {
 }
 
 function getCertificateSummary(cert = "") {
-  const certs = normalizeCerts(cert);
+  const normalizedSummary = certificateSummary(cert);
+  const certs = normalizedSummary.certs;
   if (certs.length === 0) {
     return {
       present: false,
@@ -130,7 +132,7 @@ function resolveBaseUrl(req) {
 }
 
 function normalizeCert(cert = "") {
-  return cert.replace(/\\n/g, "\n").trim();
+  return normalizeCertificateBundle(String(cert || "").replace(/\\n/g, "\n"));
 }
 
 function normalizeCerts(cert = "") {

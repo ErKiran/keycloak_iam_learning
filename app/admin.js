@@ -19,6 +19,7 @@ const {
   parseIdpMetadataXml,
   fetchAndParseIdpMetadata,
 } = require("./saml_metadata");
+const { normalizeCertificateInput } = require("./x509_certificate");
 
 function resolveBaseUrl(req) {
   return process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
@@ -26,27 +27,7 @@ function resolveBaseUrl(req) {
 
 function normalizeUploadedCertificate(file) {
   if (!file?.buffer || !file.buffer.length) return "";
-
-  const text = file.buffer.toString("utf8").trim();
-  if (text.includes("-----BEGIN CERTIFICATE-----")) {
-    return text;
-  }
-
-  const normalized = text.replace(/\s+/g, "");
-  if (normalized && /^[A-Za-z0-9+/=]+$/.test(normalized)) {
-    return [
-      "-----BEGIN CERTIFICATE-----",
-      ...(normalized.match(/.{1,64}/g) || []),
-      "-----END CERTIFICATE-----",
-    ].join("\n");
-  }
-
-  const base64 = file.buffer.toString("base64");
-  return [
-    "-----BEGIN CERTIFICATE-----",
-    ...(base64.match(/.{1,64}/g) || []),
-    "-----END CERTIFICATE-----",
-  ].join("\n");
+  return normalizeCertificateInput(file.buffer);
 }
 
 function isSamlDebugEnabled() {
@@ -126,6 +107,10 @@ async function saveSamlConfig(req, res) {
   let idpEntityId = "";
   let metadataSource = "manual";
 
+  if (req.file && !uploadedCertificate) {
+    return res.status(400).send("Uploaded certificate file is not a valid X.509 certificate. Upload the Entra Base64 .cer/.pem signing certificate or paste the PEM certificate text.");
+  }
+
   if (uploadedCertificate) {
     samlDebug("step 2 uploaded certificate received", {
       fileName: req.file?.originalname || "",
@@ -166,6 +151,12 @@ async function saveSamlConfig(req, res) {
     const message = encodeURIComponent(err.message || "Unable to parse metadata");
     return res.redirect(`/admin/dashboard?err=${message}`);
   }
+
+  const normalizedCertificate = normalizeCertificateInput(x509Certificate);
+  if (x509Certificate && !normalizedCertificate) {
+    return res.status(400).send("The SAML signing certificate is not a valid X.509 certificate. Use the Entra token-signing certificate in Base64 .cer or PEM format.");
+  }
+  x509Certificate = normalizedCertificate;
 
   if (!spEntityId || !ssoUrl || !x509Certificate) {
     samlDebug("step 4 validation failed", {
