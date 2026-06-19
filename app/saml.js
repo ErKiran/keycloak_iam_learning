@@ -92,7 +92,7 @@ function analyzeSamlXml(xml = "") {
     xmlLength: xml.length,
     xmlSha256: createHash("sha256").update(xml).digest("hex"),
     signatureTagCount,
-    hasResponseSignature: /<(?:\w+:)?Response[\s\S]*?<(?:\w+:)?Signature\b/i.test(xml),
+    hasResponseSignature: /<(?:\w+:)?Response\b(?:(?!<(?:\w+:)?Assertion\b)[\s\S])*?<(?:\w+:)?Signature\b/i.test(xml),
     hasAssertionSignature: /<(?:\w+:)?Assertion[\s\S]*?<(?:\w+:)?Signature\b/i.test(xml),
     issuer: (xml.match(/<(?:\w+:)?Issuer[^>]*>([^<]*)<\/(?:\w+:)?Issuer>/i) || [])[1] || "",
     destination: (xml.match(/Destination="([^"]*)"/i) || [])[1] || "",
@@ -190,15 +190,16 @@ function buildUserFromSamlProfile(profile, config) {
 }
 
 function createSamlStrategy(req, config) {
-  const callbackUrl = `${resolveBaseUrl(req)}/saml/acs`;
+  const baseUrl = resolveBaseUrl(req);
+  const callbackUrl = `${baseUrl}/saml/acs`;
+  const issuer = String(config.spEntityId || "").trim() || baseUrl;
   const expectedAudience =
-    String(process.env.SAML_EXPECTED_AUDIENCE || "").trim() || resolveBaseUrl(req);
-  const issuer = String(config.spEntityId || "").trim() || expectedAudience;
+    String(process.env.SAML_EXPECTED_AUDIENCE || "").trim() || issuer;
   const certs = normalizeCerts(config.x509Certificate);
   const idpCert = certs.length <= 1 ? (certs[0] || "") : certs;
 
   samlDebug("step 2 create strategy", {
-    baseUrl: resolveBaseUrl(req),
+    baseUrl,
     callbackUrl,
     expectedAudience,
     issuer,
@@ -219,6 +220,9 @@ function createSamlStrategy(req, config) {
       identifierFormat: config.nameIdFormat,
       validateInResponseTo: "never",
       disableRequestedAuthnContext: true,
+      // Entra signs the Assertion by default, while the outer Response can be unsigned.
+      wantAuthnResponseSigned: false,
+      wantAssertionsSigned: true,
       acceptedClockSkewMs: 5000,
       signatureAlgorithm: "sha256",
       digestAlgorithm: "sha256",
