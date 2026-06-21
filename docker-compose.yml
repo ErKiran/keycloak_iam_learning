@@ -1,0 +1,61 @@
+services:
+  app:
+    build: .
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SESSION_SECRET: change-me-in-real-use
+      SQLITE_PATH: /app/data/app.db
+      APP_BASE_URL: http://localhost:8090
+      REDIRECT_URI: http://localhost:8090/callback
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_PUBLIC_BASE_URL: http://localhost:8090
+      KEYCLOAK_REALM: minilab
+      KEYCLOAK_CLIENT_ID: web-app
+      KEYCLOAK_CLIENT_SECRET: local-dev-secret
+      KEYCLOAK_RESOURCE_SERVER_ID: web-app
+      KEYCLOAK_ROLE_SOURCE_CLIENT_ID: web-app
+      KEYCLOAK_INCLUDE_REALM_ROLES: "false"
+      KEYCLOAK_USER_LOOKUP_CLIENT_ID: user-lookup
+      KEYCLOAK_USER_LOOKUP_CLIENT_SECRET: user-lookup-secret
+      SCIM_BEARER_TOKEN: local-scim-token
+      SSF_BEARER_TOKEN: local-ssf-token
+    volumes:
+      - app-data:/app/data
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8090
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_DB: dev-file
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./keycloak/minilab-realm.json:/opt/keycloak/data/import/minilab-realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash -ec \"exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /realms/master HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q '200 OK' <&3\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - app
+      - keycloak
+    volumes:
+      - ./CaddyFile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "8090:8090"
+
+volumes:
+  app-data:
+  keycloak-data:

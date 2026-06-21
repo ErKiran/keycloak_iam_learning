@@ -1,26 +1,26 @@
 :8090 {
 	encode gzip
 
-	reverse_proxy /realms/* 127.0.0.1:8080 {
+	reverse_proxy /realms/* keycloak:8080 {
 		header_up Host {host}
 		header_up X-Forwarded-Host {host}
-		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Port 443
+		header_up X-Forwarded-Proto http
+		header_up X-Forwarded-Port 8090
 	}
 
-	reverse_proxy /resources/* 127.0.0.1:8080 {
+	reverse_proxy /resources/* keycloak:8080 {
 		header_up Host {host}
 		header_up X-Forwarded-Host {host}
-		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Port 443
+		header_up X-Forwarded-Proto http
+		header_up X-Forwarded-Port 8090
 	}
 
-	reverse_proxy /admin/* 127.0.0.1:8080 {
+	reverse_proxy /admin/* keycloak:8080 {
 		header_up Host {host}
 		header_up X-Forwarded-Host {host}
-		header_up X-Forwarded-Proto https
-		header_up X-Forwarded-Port 443
+		header_up X-Forwarded-Proto http
+		header_up X-Forwarded-Port 8090
 	}
 
-	reverse_proxy 127.0.0.1:3000
+	reverse_proxy app:3000
 }

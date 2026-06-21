@@ -1,0 +1,279 @@
+{
+  "realm": "minilab",
+  "enabled": true,
+  "displayName": "MiniLab IAM Demo",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "clients": [
+    {
+      "clientId": "web-app",
+      "name": "Bank Web App",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "local-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "redirectUris": [
+        "http://localhost:3000/callback",
+        "http://localhost:8090/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:8090"
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "authorizationSettings": {
+        "allowRemoteResourceManagement": true,
+        "policyEnforcementMode": "ENFORCING",
+        "decisionStrategy": "UNANIMOUS",
+        "resources": [
+          {
+            "_id": "9c5c2c3f-ef9f-46e8-9a17-d9df0ad6f0c1",
+            "name": "transfer",
+            "displayName": "Transfer",
+            "type": "urn:minilab:resources:transfer",
+            "ownerManagedAccess": false,
+            "uris": [
+              "/transfer"
+            ],
+            "scopes": [
+              {
+                "name": "transfer:write"
+              }
+            ]
+          }
+        ],
+        "scopes": [
+          {
+            "id": "5187c6ba-3d2c-4be0-a1de-bfd9bb1ce111",
+            "name": "transfer:write",
+            "displayName": "Write transfers"
+          },
+          {
+            "id": "208465ad-48ca-4e5f-9898-aaf3fd1699a1",
+            "name": "balance:read",
+            "displayName": "Read balances"
+          },
+          {
+            "id": "68c6f5e7-a5f3-46e6-99f8-923a4902fb13",
+            "name": "userlist:view",
+            "displayName": "View users"
+          }
+        ],
+        "policies": [
+          {
+            "id": "3975402e-2af5-40bf-afbd-c2758bc18971",
+            "name": "Transfer writers",
+            "description": "Allows users with the transfer:write client role.",
+            "type": "role",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "roles": "[{\"id\":\"a8ee07d1-db16-48cf-af14-3f2ec1eb7e42\",\"required\":false}]"
+            }
+          },
+          {
+            "id": "64c1f89f-8892-4431-b604-af72fdd4011f",
+            "name": "Transfer write permission",
+            "description": "Protects the transfer resource write scope.",
+            "type": "scope",
+            "logic": "POSITIVE",
+            "decisionStrategy": "UNANIMOUS",
+            "config": {
+              "resources": "[\"9c5c2c3f-ef9f-46e8-9a17-d9df0ad6f0c1\"]",
+              "scopes": "[\"5187c6ba-3d2c-4be0-a1de-bfd9bb1ce111\"]",
+              "applyPolicies": "[\"3975402e-2af5-40bf-afbd-c2758bc18971\"]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "clientId": "user-lookup",
+      "name": "User Lookup Service",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "user-lookup-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "roles": {
+    "client": {
+      "web-app": [
+        {
+          "id": "208465ad-48ca-4e5f-9898-aaf3fd1699a1",
+          "name": "balance:read",
+          "description": "Read account balances"
+        },
+        {
+          "id": "a8ee07d1-db16-48cf-af14-3f2ec1eb7e42",
+          "name": "transfer:write",
+          "description": "Create transfers"
+        },
+        {
+          "id": "68c6f5e7-a5f3-46e6-99f8-923a4902fb13",
+          "name": "userlist:view",
+          "description": "View customer list"
+        },
+        {
+          "id": "08af950f-8e1d-4f9c-906b-599178c467c6",
+          "name": "admin:dashboard",
+          "description": "Open the admin dashboard"
+        },
+        {
+          "id": "115aa8fd-fb9b-4b86-a5df-54d99b68f131",
+          "name": "admin:developer:console",
+          "description": "Manage developer console setup"
+        },
+        {
+          "id": "9f274d6d-70f5-492b-95f8-f0aca138c1f5",
+          "name": "admin:sso:saml",
+          "description": "Manage SAML SSO setup"
+        },
+        {
+          "id": "bca19787-1007-4683-a32a-cb76fce8a5f9",
+          "name": "Developer",
+          "description": "Composite role for developer/admin demo access",
+          "composite": true,
+          "composites": {
+            "client": {
+              "web-app": [
+                "balance:read",
+                "transfer:write",
+                "userlist:view",
+                "admin:dashboard",
+                "admin:developer:console",
+                "admin:sso:saml"
+              ]
+            }
+          }
+        },
+        {
+          "id": "4f07e996-b161-419b-a122-08dd605a2a6e",
+          "name": "Teller",
+          "description": "Composite role for teller access",
+          "composite": true,
+          "composites": {
+            "client": {
+              "web-app": [
+                "balance:read",
+                "userlist:view"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "users": [
+    {
+      "username": "developer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Developer",
+      "email": "developer@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "web-app": [
+          "Developer"
+        ]
+      }
+    },
+    {
+      "username": "teller",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Teller",
+      "email": "teller@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "web-app": [
+          "Teller"
+        ]
+      }
+    },
+    {
+      "username": "customer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Customer",
+      "email": "customer@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "web-app": [
+          "balance:read",
+          "transfer:write"
+        ]
+      }
+    },
+    {
+      "username": "service-account-web-app",
+      "enabled": true,
+      "serviceAccountClientId": "web-app",
+      "clientRoles": {
+        "realm-management": [
+          "query-users",
+          "view-users",
+          "view-clients"
+        ]
+      }
+    },
+    {
+      "username": "service-account-user-lookup",
+      "enabled": true,
+      "serviceAccountClientId": "user-lookup",
+      "clientRoles": {
+        "realm-management": [
+          "query-users",
+          "view-users",
+          "view-clients"
+        ]
+      }
+    }
+  ]
+}

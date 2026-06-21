@@ -1,7 +1,7 @@
 const {
   REDIRECT_URI,
   KEYCLOAK_REALM,
-  KEYCLOAK_BASE_URL
+  KEYCLOAK_PUBLIC_BASE_URL
  } = require("../helper")
 
 function logout(req, res) {
@@ -13,7 +13,7 @@ function logout(req, res) {
     }
 
     const logoutUrl =
-      `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout` +
+      `${KEYCLOAK_PUBLIC_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/logout` +
       `?post_logout_redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
       (idToken ? `&id_token_hint=${idToken}` : "");
 

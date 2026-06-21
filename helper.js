@@ -60,12 +60,14 @@ function requireUma(resource, scope) {
 
 
 const {
-  KEYCLOAK_BASE_URL,
   KEYCLOAK_REALM,
   KEYCLOAK_CLIENT_ID,
   KEYCLOAK_CLIENT_SECRET,
   REDIRECT_URI,
 } = process.env;
+
+const KEYCLOAK_BASE_URL = process.env.KEYCLOAK_BASE_URL || "http://localhost:8080";
+const KEYCLOAK_PUBLIC_BASE_URL = process.env.KEYCLOAK_PUBLIC_BASE_URL || KEYCLOAK_BASE_URL;
 
 const USERLIST = "userlist:view"
 const TRANSFER = "transfer:write"
@@ -112,11 +114,12 @@ function getDashboardRedirect(roles = []) {
   return null;
 }
 
-const authorizeEndpoint = `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth`;
+const authorizeEndpoint = `${KEYCLOAK_PUBLIC_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/auth`;
 const tokenEndpoint = `${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token`;
 
 
 module.exports = {getUserRoles, requireLogin, getUsername,  KEYCLOAK_BASE_URL,
+  KEYCLOAK_PUBLIC_BASE_URL,
   KEYCLOAK_REALM,
   KEYCLOAK_CLIENT_ID,
   KEYCLOAK_CLIENT_SECRET,
