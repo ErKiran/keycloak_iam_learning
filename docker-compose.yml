@@ -1,0 +1,82 @@
+services:
+  realm-prep:
+    image: node:22-alpine
+    working_dir: /work
+    environment:
+      APP_BASE_URL: http://localhost:3001
+    volumes:
+      - ./keycloak/minilab-realm.json:/work/minilab-realm.json:ro
+      - keycloak-import:/out
+    command:
+      - node
+      - -e
+      - |
+        const fs = require("fs");
+        const appBaseUrl = process.env.APP_BASE_URL;
+        const realm = JSON.parse(fs.readFileSync("/work/minilab-realm.json", "utf8"));
+        const webApp = realm.clients.find((client) => client.clientId === "web-app");
+        if (!webApp) throw new Error("web-app client not found in realm file");
+        webApp.redirectUris = [appBaseUrl + "/callback"];
+        webApp.webOrigins = [appBaseUrl];
+        fs.writeFileSync("/out/minilab-realm.json", JSON.stringify(realm, null, 2) + "\n");
+        console.log("Prepared realm import for " + appBaseUrl);
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    depends_on:
+      realm-prep:
+        condition: service_completed_successfully
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_DB: dev-file
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - keycloak-import:/opt/keycloak/data/import:ro
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "/bin/bash -ec \"exec 3<>/dev/tcp/127.0.0.1/8080; printf 'GET /realms/master HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q '200 OK' <&3\""]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build: .
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SESSION_SECRET: change-me-in-real-use
+      SQLITE_PATH: /app/data/app.db
+      APP_BASE_URL: http://localhost:3001
+      REDIRECT_URI: http://localhost:3001/callback
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_PUBLIC_BASE_URL: http://localhost:8081
+      KEYCLOAK_REALM: minilab
+      KEYCLOAK_CLIENT_ID: web-app
+      KEYCLOAK_CLIENT_SECRET: local-dev-secret
+      KEYCLOAK_RESOURCE_SERVER_ID: web-app
+      KEYCLOAK_ROLE_SOURCE_CLIENT_ID: web-app
+      KEYCLOAK_INCLUDE_REALM_ROLES: "false"
+      KEYCLOAK_USER_LOOKUP_CLIENT_ID: user-lookup
+      KEYCLOAK_USER_LOOKUP_CLIENT_SECRET: user-lookup-secret
+      SCIM_BEARER_TOKEN: local-scim-token
+      SSF_BEARER_TOKEN: local-ssf-token
+    volumes:
+      - app-data:/app/data
+    ports:
+      - "3001:3000"
+
+volumes:
+  app-data:
+  keycloak-data:
+  keycloak-import:
