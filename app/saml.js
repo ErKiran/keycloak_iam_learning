@@ -9,17 +9,6 @@ const { getActiveSamlConfig } = require("./saml_config_store");
 const { keycloakUserExists, getUserRolesFromKeycloak } = require("./keycloak_users");
 const { certificateSummary, normalizeCertificateBundle } = require("./x509_certificate");
 
-function isSamlDebugEnabled() {
-  const value = String(process.env.SAML_DEBUG || "").toLowerCase();
-  if (value === "true" || value === "1" || value === "yes") return true;
-  if (value === "false" || value === "0" || value === "no") return false;
-  return String(process.env.NODE_ENV || "").toLowerCase() !== "production";
-}
-
-function samlDebug(step, details = {}) {
-  if (!isSamlDebugEnabled()) return;
-  console.log(`[SAML DEBUG] ${step}`, details);
-}
 
 function getCertificateSummary(cert = "") {
   const normalizedSummary = certificateSummary(cert);
@@ -198,18 +187,6 @@ function createSamlStrategy(req, config) {
   const certs = normalizeCerts(config.x509Certificate);
   const idpCert = certs.length <= 1 ? (certs[0] || "") : certs;
 
-  samlDebug("step 2 create strategy", {
-    baseUrl,
-    callbackUrl,
-    expectedAudience,
-    issuer,
-    ssoUrl: config.ssoUrl,
-    configId: config.id || null,
-    idpEntityId: config.idpEntityId || "",
-    metadataSource: config.metadataSource || "",
-    certSummary: getCertificateSummary(config.x509Certificate),
-  });
-
   return new SamlStrategy(
     {
       issuer,
@@ -237,18 +214,6 @@ async function withSamlStrategy(req, res, next, callback, options = {}) {
   try {
     const config = await getActiveSamlConfig();
 
-    samlDebug("step 1 load active config", {
-      hasConfig: Boolean(config),
-      configId: config?.id || null,
-      isEnabled: config?.isEnabled ?? null,
-      isActive: config?.isActive ?? null,
-      spEntityId: config?.spEntityId || "",
-      ssoUrl: config?.ssoUrl || "",
-      idpEntityId: config?.idpEntityId || "",
-      metadataSource: config?.metadataSource || "",
-      certSummary: getCertificateSummary(config?.x509Certificate || ""),
-    });
-
     if (!config) {
       if (typeof onMissingConfig === "function") {
         return onMissingConfig();
@@ -272,12 +237,6 @@ async function withSamlStrategy(req, res, next, callback, options = {}) {
 }
 
 function samlLogin(req, res, next) {
-  samlDebug("step 0 saml login entry", {
-    method: req.method,
-    path: req.originalUrl,
-    host: req.get("host"),
-    queryKeys: Object.keys(req.query || {}),
-  });
 
   return withSamlStrategy(
     req,
@@ -289,12 +248,6 @@ function samlLogin(req, res, next) {
 }
 
 function samlLoginPost(req, res, next) {
-  samlDebug("step 0 post entry", {
-    method: req.method,
-    path: req.originalUrl,
-    hasSamlResponse: Boolean(req.body?.SAMLResponse),
-    samlResponseLength: String(req.body?.SAMLResponse || "").length,
-  });
 
   if (req.body?.SAMLResponse) {
     return samlAcs(req, res, next);
@@ -305,67 +258,14 @@ function samlLoginPost(req, res, next) {
 function samlAcs(req, res, next) {
   const responsePreview = decodeSamlResponsePreview(req.body?.SAMLResponse || "");
 
-  samlDebug("step 0 acs entry", {
-    method: req.method,
-    path: req.originalUrl,
-    contentType: req.get("content-type"),
-    bodyKeys: Object.keys(req.body || {}),
-    relayState: req.body?.RelayState || "",
-    responsePreview,
-  });
-
   return withSamlStrategy(req, res, next, (strategyName, config) => {
-    samlDebug("step 3 validate response", {
-      strategyName,
-      requestHost: req.get("host"),
-      baseUrl: resolveBaseUrl(req),
-      acsUrl: `${resolveBaseUrl(req)}/saml/acs`,
-      expectedAudience:
-        String(process.env.SAML_EXPECTED_AUDIENCE || "").trim() || resolveBaseUrl(req),
-      configId: config?.id || null,
-      idpEntityId: config?.idpEntityId || "",
-      spEntityId: config?.spEntityId || "",
-      ssoUrl: config?.ssoUrl || "",
-      certSummary: getCertificateSummary(config?.x509Certificate || ""),
-      xmlAnalysis: responsePreview?.analysis || null,
-    });
 
     passport.authenticate(strategyName, { session: false }, (err, profile) => {
       if (err) {
         const isSignatureError = String(err?.message || "").toLowerCase().includes("invalid document signature");
 
-        samlDebug("step 4 passport error", {
-          name: err?.name || "",
-          message: err?.message || String(err),
-          stack: err?.stack || "",
-        });
-
-        if (isSignatureError) {
-          samlDebug("step 4 signature validation failure details", {
-            hint: "IdP signing certificate in active config does not match signing cert used in incoming SAML Response/Assertion.",
-            relayState: req.body?.RelayState || "",
-            certSummary: getCertificateSummary(config?.x509Certificate || ""),
-            xmlAnalysis: responsePreview?.analysis || null,
-          });
-        }
-
         return next(err);
       }
-
-      if (!profile) {
-        samlDebug("step 4 passport returned no profile", {
-          configId: config?.id || null,
-          spEntityId: config?.spEntityId || "",
-          idpEntityId: config?.idpEntityId || "",
-        });
-        return res.status(401).send("SAML authentication failed");
-      }
-
-      samlDebug("step 5 passport success", {
-        profileKeys: Object.keys(profile || {}),
-        nameID: profile?.nameID || "",
-        issuer: profile?.issuer || "",
-      });
 
       const user = buildUserFromSamlProfile(profile, config);
 
