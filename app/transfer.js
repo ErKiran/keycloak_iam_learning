@@ -113,7 +113,7 @@ async function authorizeTransfer(req, res) {
       client_secret: KEYCLOAK_CLIENT_SECRET,
       response_type: "code",
       redirect_uri: REDIRECT_URI,
-      scope: "openid transfer:write",
+      scope: "openid profile email",
       prompt: "consent",
     });
 

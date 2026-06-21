@@ -22,12 +22,10 @@
       "serviceAccountsEnabled": true,
       "authorizationServicesEnabled": true,
       "redirectUris": [
-        "http://localhost:3000/callback",
-        "http://localhost:8090/callback"
+        "http://localhost:3000/callback"
       ],
       "webOrigins": [
-        "http://localhost:3000",
-        "http://localhost:8090"
+        "http://localhost:3000"
       ],
       "defaultClientScopes": [
         "web-origins",
@@ -162,9 +160,6 @@
           "composites": {
             "client": {
               "web-app": [
-                "balance:read",
-                "transfer:write",
-                "userlist:view",
                 "admin:dashboard",
                 "admin:developer:console",
                 "admin:sso:saml"
@@ -182,6 +177,20 @@
               "web-app": [
                 "balance:read",
                 "userlist:view"
+              ]
+            }
+          }
+        },
+        {
+          "id": "4f07e996-b161-419b-a122-08dd605a2a6f",
+          "name": "Customer",
+          "description": "Composite role for customer",
+          "composite": true,
+          "composites": {
+            "client": {
+              "web-app": [
+                "balance:read",
+                "transfer:write"
               ]
             }
           }

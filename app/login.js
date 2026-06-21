@@ -25,7 +25,12 @@ function login(req, res) {
 };
 
 async function callback(req, res) {
-    const { code } = req.query;
+    const { code, error, error_description } = req.query;
+
+    if (error) {
+        const description = error_description ? `: ${error_description}` : "";
+        return res.status(400).send(`Keycloak authorization failed (${error})${description}`);
+    }
 
     if (!code) {
         return res.status(400).send("Missing authorization code");
