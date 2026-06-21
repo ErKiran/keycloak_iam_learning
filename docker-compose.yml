@@ -18,6 +18,10 @@ services:
         if (!webApp) throw new Error("web-app client not found in realm file");
         webApp.redirectUris = [appBaseUrl + "/callback"];
         webApp.webOrigins = [appBaseUrl];
+        webApp.attributes = {
+          ...(webApp.attributes || {}),
+          "post.logout.redirect.uris": appBaseUrl + "/"
+        };
         fs.writeFileSync("/out/minilab-realm.json", JSON.stringify(realm, null, 2) + "\n");
         console.log("Prepared realm import for " + appBaseUrl);
 
@@ -54,7 +58,7 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 3001
       SESSION_SECRET: change-me-in-real-use
       SQLITE_PATH: /app/data/app.db
       APP_BASE_URL: http://localhost:3001
@@ -74,7 +78,7 @@ services:
     volumes:
       - app-data:/app/data
     ports:
-      - "3001:3000"
+      - "3001:3001"
 
 volumes:
   app-data:

@@ -13,6 +13,6 @@ RUN npm_config_build_from_source=true npm ci --omit=dev
 
 COPY . .
 
-EXPOSE 3000
+EXPOSE 3001
 
 CMD ["npm", "start"]
