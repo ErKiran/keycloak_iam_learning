@@ -7,6 +7,7 @@ const {
   updateKeycloakUser,
   deleteKeycloakUser,
 } = require("./keycloak_users");
+const { getKeycloakUserGroups } = require("./keycloak_groups");
 
 const router = express.Router();
 
@@ -19,7 +20,19 @@ function scimLocation(req, id) {
   return `${req.protocol}://${req.get("host")}/scim/v2/Users/${encodeURIComponent(id)}`;
 }
 
-function keycloakToScimUser(req, user) {
+function groupLocation(req, id) {
+  return `${req.protocol}://${req.get("host")}/scim/v2/Groups/${encodeURIComponent(id)}`;
+}
+
+function keycloakGroupToScimMembership(req, group) {
+  return {
+    value: group.id,
+    display: group.name || group.path || group.id,
+    $ref: groupLocation(req, group.id),
+  };
+}
+
+function keycloakToScimUser(req, user, groups = []) {
   const emails = [];
   if (user.email) {
     emails.push({
@@ -39,12 +52,18 @@ function keycloakToScimUser(req, user) {
     },
     active: user.enabled !== false,
     emails,
+    groups: groups.map((group) => keycloakGroupToScimMembership(req, group)),
     meta: {
       resourceType: "User",
       created: user.createdTimestamp ? new Date(user.createdTimestamp).toISOString() : undefined,
       location: scimLocation(req, user.id),
     },
   };
+}
+
+async function keycloakToScimUserWithGroups(req, user) {
+  const groups = await getKeycloakUserGroups(user.id);
+  return keycloakToScimUser(req, user, groups);
 }
 
 function firstEmail(scimUser = {}) {
@@ -235,7 +254,7 @@ router.get("/Users", async (req, res) => {
       totalResults,
       startIndex,
       itemsPerPage: users.length,
-      Resources: users.map((user) => keycloakToScimUser(req, user)),
+      Resources: await Promise.all(users.map((user) => keycloakToScimUserWithGroups(req, user))),
     });
   } catch (err) {
     return handleKeycloakError(res, err);
@@ -260,7 +279,7 @@ router.post("/Users", async (req, res) => {
 router.get("/Users/:id", async (req, res) => {
   try {
     const user = await getKeycloakUserById(req.params.id);
-    return res.json(keycloakToScimUser(req, user));
+    return res.json(await keycloakToScimUserWithGroups(req, user));
   } catch (err) {
     return handleKeycloakError(res, err);
   }

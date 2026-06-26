@@ -83,6 +83,17 @@ async function getKeycloakGroupMembers(groupId) {
   return Array.isArray(response.data) ? response.data : [];
 }
 
+async function getKeycloakUserGroups(userId) {
+  const headers = await authHeaders();
+  const response = await axios.get(`${usersBaseUrl()}/${encodeURIComponent(userId)}/groups`, {
+    headers,
+    params: { briefRepresentation: false, max: 1000 },
+    timeout: 10000,
+  });
+
+  return Array.isArray(response.data) ? response.data : [];
+}
+
 async function createKeycloakGroup(group) {
   const headers = await authHeaders();
   const response = await axios.post(groupsBaseUrl(), group, {
@@ -137,6 +148,7 @@ module.exports = {
   searchKeycloakGroups,
   getKeycloakGroupById,
   getKeycloakGroupMembers,
+  getKeycloakUserGroups,
   createKeycloakGroup,
   updateKeycloakGroup,
   deleteKeycloakGroup,

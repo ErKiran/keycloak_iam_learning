@@ -158,13 +158,18 @@ function buildOpenApi(req) {
               type: "array",
               items: { $ref: "#/components/schemas/ScimEmail" },
             },
+            groups: {
+              type: "array",
+              items: { $ref: "#/components/schemas/ScimMember" },
+              readOnly: true,
+            },
             meta: { type: "object", readOnly: true },
           },
         },
         ScimMember: {
           type: "object",
           properties: {
-            value: { type: "string", description: "Keycloak user id" },
+            value: { type: "string", description: "Keycloak resource id" },
             display: { type: "string", readOnly: true },
             $ref: { type: "string", readOnly: true },
           },
