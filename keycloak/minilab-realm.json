@@ -198,6 +198,35 @@
       ]
     }
   },
+  "groups": [
+    {
+      "name": "Developer",
+      "path": "/Developer",
+      "clientRoles": {
+        "web-app": [
+          "Developer"
+        ]
+      }
+    },
+    {
+      "name": "Teller",
+      "path": "/Teller",
+      "clientRoles": {
+        "web-app": [
+          "Teller"
+        ]
+      }
+    },
+    {
+      "name": "Customer",
+      "path": "/Customer",
+      "clientRoles": {
+        "web-app": [
+          "Customer"
+        ]
+      }
+    }
+  ],
   "users": [
     {
       "username": "developer",
@@ -212,6 +241,9 @@
           "value": "password",
           "temporary": false
         }
+      ],
+      "groups": [
+        "/Developer"
       ],
       "clientRoles": {
         "web-app": [
@@ -233,6 +265,9 @@
           "temporary": false
         }
       ],
+      "groups": [
+        "/Teller"
+      ],
       "clientRoles": {
         "web-app": [
           "Teller"
@@ -252,6 +287,9 @@
           "value": "password",
           "temporary": false
         }
+      ],
+      "groups": [
+        "/Customer"
       ],
       "clientRoles": {
         "web-app": [
