@@ -8,9 +8,27 @@ const {
   tokenEndpoint,
 } = require("../helper");
 
+function isScimDebugEnabled() {
+  return String(process.env.SCIM_DEBUG || "").toLowerCase() === "true";
+}
+
+function scimDebug(step, details = {}) {
+  if (!isScimDebugEnabled()) return;
+  console.log(`[SCIM DEBUG] ${step}`, details);
+}
+
+function keycloakErrorDetails(err) {
+  return {
+    message: err?.message,
+    status: err?.response?.status,
+    data: err?.response?.data,
+  };
+}
+
 async function getAdminAccessToken() {
   const clientId = process.env.KEYCLOAK_USER_LOOKUP_CLIENT_ID || KEYCLOAK_CLIENT_ID;
   const clientSecret = process.env.KEYCLOAK_USER_LOOKUP_CLIENT_SECRET || KEYCLOAK_CLIENT_SECRET;
+  scimDebug("keycloak token request", { clientId });
 
   const response = await axios.post(
     tokenEndpoint,
@@ -30,6 +48,7 @@ async function getAdminAccessToken() {
     throw new Error("Unable to obtain Keycloak admin access token for group management");
   }
 
+  scimDebug("keycloak token received", { clientId });
   return accessToken;
 }
 
@@ -48,6 +67,7 @@ async function authHeaders() {
 
 async function searchKeycloakGroups({ search, first = 0, max = 1000 } = {}) {
   const headers = await authHeaders();
+  scimDebug("search groups request", { search, first, max });
   const response = await axios.get(groupsBaseUrl(), {
     headers,
     params: {
@@ -59,6 +79,11 @@ async function searchKeycloakGroups({ search, first = 0, max = 1000 } = {}) {
     timeout: 10000,
   });
 
+  scimDebug("search groups response", {
+    search,
+    count: Array.isArray(response.data) ? response.data.length : 0,
+    names: Array.isArray(response.data) ? response.data.map((group) => group.name) : [],
+  });
   return Array.isArray(response.data) ? response.data : [];
 }
 
@@ -85,23 +110,33 @@ async function getKeycloakGroupMembers(groupId) {
 
 async function getKeycloakUserGroups(userId) {
   const headers = await authHeaders();
+  scimDebug("user groups request", { userId });
   const response = await axios.get(`${usersBaseUrl()}/${encodeURIComponent(userId)}/groups`, {
     headers,
     params: { briefRepresentation: false, max: 1000 },
     timeout: 10000,
   });
 
+  scimDebug("user groups response", {
+    userId,
+    groups: Array.isArray(response.data)
+      ? response.data.map((group) => ({ id: group.id, name: group.name, path: group.path }))
+      : [],
+  });
   return Array.isArray(response.data) ? response.data : [];
 }
 
 async function findKeycloakGroupByName(name) {
   const groups = await searchKeycloakGroups({ search: name });
   const normalized = String(name || "").trim().toLowerCase();
-  return groups.find((group) => String(group.name || "").trim().toLowerCase() === normalized) || null;
+  const group = groups.find((item) => String(item.name || "").trim().toLowerCase() === normalized) || null;
+  scimDebug("find group by name", { name, found: group ? { id: group.id, name: group.name, path: group.path } : null });
+  return group;
 }
 
 async function getClientUuidByClientId(clientId) {
   const headers = await authHeaders();
+  scimDebug("client lookup request", { clientId });
   const response = await axios.get(`${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/clients`, {
     headers,
     params: { clientId, max: 2 },
@@ -109,11 +144,14 @@ async function getClientUuidByClientId(clientId) {
   });
 
   const clients = Array.isArray(response.data) ? response.data : [];
-  return clients[0]?.id || null;
+  const clientUuid = clients[0]?.id || null;
+  scimDebug("client lookup response", { clientId, clientUuid });
+  return clientUuid;
 }
 
 async function getClientRole(clientUuid, roleName) {
   const headers = await authHeaders();
+  scimDebug("client role lookup request", { clientUuid, roleName });
   const response = await axios.get(
     `${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/clients/${encodeURIComponent(clientUuid)}/roles/${encodeURIComponent(roleName)}`,
     {
@@ -122,10 +160,16 @@ async function getClientRole(clientUuid, roleName) {
     }
   );
 
+  scimDebug("client role lookup response", {
+    clientUuid,
+    roleName,
+    role: response.data ? { id: response.data.id, name: response.data.name } : null,
+  });
   return response.data;
 }
 
 async function assignClientRoleToGroup(groupId, roleName, clientId = KEYCLOAK_CLIENT_ID) {
+  scimDebug("assign client role to group start", { groupId, roleName, clientId });
   const clientUuid = await getClientUuidByClientId(clientId);
   if (!clientUuid) {
     throw new Error(`Keycloak client not found: ${clientId}`);
@@ -133,28 +177,39 @@ async function assignClientRoleToGroup(groupId, roleName, clientId = KEYCLOAK_CL
 
   const role = await getClientRole(clientUuid, roleName);
   const headers = await authHeaders();
-  await axios.post(
-    `${groupsBaseUrl()}/${encodeURIComponent(groupId)}/role-mappings/clients/${encodeURIComponent(clientUuid)}`,
-    [role],
-    {
-      headers,
-      timeout: 10000,
-    }
-  );
+  try {
+    await axios.post(
+      `${groupsBaseUrl()}/${encodeURIComponent(groupId)}/role-mappings/clients/${encodeURIComponent(clientUuid)}`,
+      [role],
+      {
+        headers,
+        timeout: 10000,
+      }
+    );
+    scimDebug("assign client role to group success", { groupId, roleName, clientId, clientUuid });
+  } catch (err) {
+    scimDebug("assign client role to group failed", { groupId, roleName, clientId, ...keycloakErrorDetails(err) });
+    throw err;
+  }
 }
 
 async function ensureKeycloakGroupWithClientRole(groupName, roleName, clientId = KEYCLOAK_CLIENT_ID) {
+  scimDebug("ensure group with role start", { groupName, roleName, clientId });
   let group = await findKeycloakGroupByName(groupName);
   if (!group) {
+    scimDebug("group missing, creating", { groupName });
     group = await createKeycloakGroup({ name: groupName });
+    scimDebug("group created", { groupName, groupId: group.id });
   }
 
   await assignClientRoleToGroup(group.id, roleName, clientId);
+  scimDebug("ensure group with role complete", { groupName, groupId: group.id, roleName, clientId });
   return group;
 }
 
 async function createKeycloakGroup(group) {
   const headers = await authHeaders();
+  scimDebug("create group request", { group });
   const response = await axios.post(groupsBaseUrl(), group, {
     headers,
     timeout: 10000,
@@ -166,6 +221,7 @@ async function createKeycloakGroup(group) {
     throw new Error("Keycloak created the group but did not return a Location header");
   }
 
+  scimDebug("create group response", { groupId, location });
   return getKeycloakGroupById(groupId);
 }
 
@@ -189,18 +245,32 @@ async function deleteKeycloakGroup(groupId) {
 
 async function addUserToKeycloakGroup(userId, groupId) {
   const headers = await authHeaders();
-  await axios.put(`${usersBaseUrl()}/${encodeURIComponent(userId)}/groups/${encodeURIComponent(groupId)}`, null, {
-    headers,
-    timeout: 10000,
-  });
+  scimDebug("add user to group request", { userId, groupId });
+  try {
+    await axios.put(`${usersBaseUrl()}/${encodeURIComponent(userId)}/groups/${encodeURIComponent(groupId)}`, null, {
+      headers,
+      timeout: 10000,
+    });
+    scimDebug("add user to group success", { userId, groupId });
+  } catch (err) {
+    scimDebug("add user to group failed", { userId, groupId, ...keycloakErrorDetails(err) });
+    throw err;
+  }
 }
 
 async function removeUserFromKeycloakGroup(userId, groupId) {
   const headers = await authHeaders();
-  await axios.delete(`${usersBaseUrl()}/${encodeURIComponent(userId)}/groups/${encodeURIComponent(groupId)}`, {
-    headers,
-    timeout: 10000,
-  });
+  scimDebug("remove user from group request", { userId, groupId });
+  try {
+    await axios.delete(`${usersBaseUrl()}/${encodeURIComponent(userId)}/groups/${encodeURIComponent(groupId)}`, {
+      headers,
+      timeout: 10000,
+    });
+    scimDebug("remove user from group success", { userId, groupId });
+  } catch (err) {
+    scimDebug("remove user from group failed", { userId, groupId, ...keycloakErrorDetails(err) });
+    throw err;
+  }
 }
 
 module.exports = {

@@ -74,6 +74,7 @@ services:
       KEYCLOAK_USER_LOOKUP_CLIENT_ID: user-lookup
       KEYCLOAK_USER_LOOKUP_CLIENT_SECRET: user-lookup-secret
       SCIM_BEARER_TOKEN: local-scim-token
+      SCIM_DEBUG: "true"
       SSF_BEARER_TOKEN: local-ssf-token
     volumes:
       - app-data:/app/data

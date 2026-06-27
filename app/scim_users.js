@@ -34,6 +34,23 @@ const DEPARTMENT_GROUP_RULES = [
   },
 ];
 
+function isScimDebugEnabled() {
+  return String(process.env.SCIM_DEBUG || "").toLowerCase() === "true";
+}
+
+function scimDebug(step, details = {}) {
+  if (!isScimDebugEnabled()) return;
+  console.log(`[SCIM DEBUG] ${step}`, details);
+}
+
+function keycloakErrorDetails(err) {
+  return {
+    message: err?.message,
+    status: err?.response?.status,
+    data: err?.response?.data,
+  };
+}
+
 function scimLocation(req, id) {
   return `${req.protocol}://${req.get("host")}/scim/v2/Users/${encodeURIComponent(id)}`;
 }
@@ -90,12 +107,20 @@ function keycloakDepartment(user = {}) {
 
 function scimDepartment(scimUser = {}) {
   const enterprise = scimUser[ENTERPRISE_USER_SCHEMA];
-  return scimUser.department ?? enterprise?.department;
+  const department = scimUser.department ?? enterprise?.department;
+  scimDebug("department extracted", {
+    topLevelDepartment: scimUser.department,
+    enterpriseDepartment: enterprise?.department,
+    selectedDepartment: department,
+  });
+  return department;
 }
 
 function departmentRule(department) {
   const normalized = String(department || "").trim().toLowerCase();
-  return DEPARTMENT_GROUP_RULES.find((rule) => rule.department === normalized) || null;
+  const rule = DEPARTMENT_GROUP_RULES.find((item) => item.department === normalized) || null;
+  scimDebug("department rule resolved", { department, normalized, rule });
+  return rule;
 }
 
 async function keycloakToScimUserWithGroups(req, user) {
@@ -122,7 +147,7 @@ function scimToKeycloakUser(scimUser = {}, existing = {}) {
     attributes.department = department ? [String(department)] : [];
   }
 
-  return {
+  const keycloakUser = {
     ...existing,
     username: scimUser.userName ?? existing.username,
     email: email !== undefined ? email : existing.email,
@@ -131,6 +156,15 @@ function scimToKeycloakUser(scimUser = {}, existing = {}) {
     enabled: typeof scimUser.active === "boolean" ? scimUser.active : existing.enabled ?? true,
     attributes,
   };
+
+  scimDebug("scim user converted to keycloak user", {
+    inputUserName: scimUser.userName,
+    existingUserId: existing.id,
+    department,
+    attributes: keycloakUser.attributes,
+  });
+
+  return keycloakUser;
 }
 
 function scimError(res, status, detail, scimType) {
@@ -234,24 +268,43 @@ function removePath(user, path) {
 }
 
 async function syncDepartmentGroup(userId, department) {
+  scimDebug("department sync start", { userId, department });
   const nextRule = departmentRule(department);
   const managedGroups = new Set(DEPARTMENT_GROUP_RULES.map((rule) => rule.groupName.toLowerCase()));
   const currentGroups = await getKeycloakUserGroups(userId);
+  scimDebug("department sync current groups", {
+    userId,
+    department,
+    nextRule,
+    managedGroups: [...managedGroups],
+    currentGroups: currentGroups.map((group) => ({ id: group.id, name: group.name, path: group.path })),
+  });
 
   for (const group of currentGroups) {
     const groupName = String(group.name || "").trim().toLowerCase();
     if (managedGroups.has(groupName) && groupName !== String(nextRule?.groupName || "").toLowerCase()) {
+      scimDebug("department sync removing managed group", { userId, groupId: group.id, groupName: group.name });
       await removeUserFromKeycloakGroup(userId, group.id);
     }
   }
 
-  if (!nextRule) return;
+  if (!nextRule) {
+    scimDebug("department sync skipped no matching rule", { userId, department });
+    return;
+  }
 
   const targetGroup = await ensureKeycloakGroupWithClientRole(nextRule.groupName, nextRule.roleName);
   const alreadyMember = currentGroups.some((group) => group.id === targetGroup.id);
+  scimDebug("department sync target group", {
+    userId,
+    department,
+    targetGroup: { id: targetGroup.id, name: targetGroup.name, path: targetGroup.path },
+    alreadyMember,
+  });
   if (!alreadyMember) {
     await addUserToKeycloakGroup(userId, targetGroup.id);
   }
+  scimDebug("department sync complete", { userId, department, groupName: nextRule.groupName, roleName: nextRule.roleName });
 }
 
 function applyPatchOperations(scimUser, operations = []) {
@@ -296,6 +349,7 @@ function applyPatchOperations(scimUser, operations = []) {
 
 async function handleKeycloakError(res, err) {
   const status = err?.response?.status;
+  scimDebug("keycloak error handled", keycloakErrorDetails(err));
 
   if (status === 404) {
     return scimError(res, 404, "User not found");
@@ -351,12 +405,13 @@ router.get("/Users", async (req, res) => {
 
 router.post("/Users", async (req, res) => {
   try {
-    console.log("Create user request body:", JSON.stringify(req.body, null, 2));
+    scimDebug("create user request body", req.body);
     if (!req.body?.userName) {
       return scimError(res, 400, "userName is required", "invalidValue");
     }
 
     const created = await createKeycloakUser(scimToKeycloakUser(req.body));
+    scimDebug("create user created in keycloak", { userId: created.id, username: created.username, attributes: created.attributes });
     await syncDepartmentGroup(created.id, scimDepartment(req.body));
     const scimUser = await keycloakToScimUserWithGroups(req, await getKeycloakUserById(created.id));
     return res.status(201).set("Location", scimUser.meta.location).json(scimUser);
@@ -386,7 +441,9 @@ router.put("/Users/:id", async (req, res) => {
     }
 
     const existing = await getKeycloakUserById(req.params.id);
+    scimDebug("put user existing keycloak user", { userId: existing.id, username: existing.username, attributes: existing.attributes });
     const updated = await updateKeycloakUser(req.params.id, scimToKeycloakUser(req.body, existing));
+    scimDebug("put user updated keycloak user", { userId: updated.id, username: updated.username, attributes: updated.attributes });
     await syncDepartmentGroup(req.params.id, scimDepartment(req.body) ?? keycloakDepartment(updated));
     const scimUser = await keycloakToScimUserWithGroups(req, updated);
     return res.set("Location", scimUser.meta.location).json(scimUser);
@@ -403,8 +460,11 @@ router.patch("/Users/:id", async (req, res) => {
     }
 
     const existing = await getKeycloakUserById(req.params.id);
+    scimDebug("patch user existing keycloak user", { userId: existing.id, username: existing.username, attributes: existing.attributes });
     const patchedScim = applyPatchOperations(keycloakToScimUser(req, existing), req.body?.Operations);
+    scimDebug("patch user patched scim user", patchedScim);
     const updated = await updateKeycloakUser(req.params.id, scimToKeycloakUser(patchedScim, existing));
+    scimDebug("patch user updated keycloak user", { userId: updated.id, username: updated.username, attributes: updated.attributes });
     await syncDepartmentGroup(req.params.id, scimDepartment(patchedScim));
     return res.json(await keycloakToScimUserWithGroups(req, updated));
   } catch (err) {
