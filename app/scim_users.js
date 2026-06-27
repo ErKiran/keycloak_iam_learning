@@ -7,7 +7,12 @@ const {
   updateKeycloakUser,
   deleteKeycloakUser,
 } = require("./keycloak_users");
-const { getKeycloakUserGroups } = require("./keycloak_groups");
+const {
+  getKeycloakUserGroups,
+  ensureKeycloakGroupWithClientRole,
+  addUserToKeycloakGroup,
+  removeUserFromKeycloakGroup,
+} = require("./keycloak_groups");
 
 const router = express.Router();
 
@@ -15,6 +20,19 @@ const USER_SCHEMA = "urn:ietf:params:scim:schemas:core:2.0:User";
 const LIST_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:ListResponse";
 const PATCH_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
 const ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error";
+const ENTERPRISE_USER_SCHEMA = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User";
+const DEPARTMENT_GROUP_RULES = [
+  {
+    department: "information technology",
+    groupName: "Developer",
+    roleName: "Developer",
+  },
+  {
+    department: "finance",
+    groupName: "Finance",
+    roleName: "Teller",
+  },
+];
 
 function scimLocation(req, id) {
   return `${req.protocol}://${req.get("host")}/scim/v2/Users/${encodeURIComponent(id)}`;
@@ -33,6 +51,7 @@ function keycloakGroupToScimMembership(req, group) {
 }
 
 function keycloakToScimUser(req, user, groups = []) {
+  const department = keycloakDepartment(user);
   const emails = [];
   if (user.email) {
     emails.push({
@@ -52,6 +71,8 @@ function keycloakToScimUser(req, user, groups = []) {
     },
     active: user.enabled !== false,
     emails,
+    ...(department ? { department } : {}),
+    ...(department ? { [ENTERPRISE_USER_SCHEMA]: { department } } : {}),
     groups: groups.map((group) => keycloakGroupToScimMembership(req, group)),
     meta: {
       resourceType: "User",
@@ -59,6 +80,22 @@ function keycloakToScimUser(req, user, groups = []) {
       location: scimLocation(req, user.id),
     },
   };
+}
+
+function keycloakDepartment(user = {}) {
+  const value = user.attributes?.department;
+  if (Array.isArray(value)) return value[0] || "";
+  return value || "";
+}
+
+function scimDepartment(scimUser = {}) {
+  const enterprise = scimUser[ENTERPRISE_USER_SCHEMA];
+  return scimUser.department ?? enterprise?.department;
+}
+
+function departmentRule(department) {
+  const normalized = String(department || "").trim().toLowerCase();
+  return DEPARTMENT_GROUP_RULES.find((rule) => rule.department === normalized) || null;
 }
 
 async function keycloakToScimUserWithGroups(req, user) {
@@ -78,6 +115,12 @@ function firstEmail(scimUser = {}) {
 function scimToKeycloakUser(scimUser = {}, existing = {}) {
   const name = scimUser.name || {};
   const email = firstEmail(scimUser);
+  const department = scimDepartment(scimUser);
+  const attributes = { ...(existing.attributes || {}) };
+
+  if (department !== undefined) {
+    attributes.department = department ? [String(department)] : [];
+  }
 
   return {
     ...existing,
@@ -86,6 +129,7 @@ function scimToKeycloakUser(scimUser = {}, existing = {}) {
     firstName: Object.prototype.hasOwnProperty.call(name, "givenName") ? name.givenName : existing.firstName,
     lastName: Object.prototype.hasOwnProperty.call(name, "familyName") ? name.familyName : existing.lastName,
     enabled: typeof scimUser.active === "boolean" ? scimUser.active : existing.enabled ?? true,
+    attributes,
   };
 }
 
@@ -128,6 +172,21 @@ function setPath(user, path, value) {
     case "active":
       user.active = value;
       break;
+    case "department":
+      user.department = value;
+      user[ENTERPRISE_USER_SCHEMA] = { ...(user[ENTERPRISE_USER_SCHEMA] || {}), department: value };
+      break;
+    case ENTERPRISE_USER_SCHEMA.toLowerCase():
+      if (value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "department")) {
+        user.department = value.department;
+        user[ENTERPRISE_USER_SCHEMA] = { ...(user[ENTERPRISE_USER_SCHEMA] || {}), department: value.department };
+        break;
+      }
+      throw Object.assign(new Error(`Unsupported PATCH path: ${path}`), { status: 400, scimType: "invalidPath" });
+    case `${ENTERPRISE_USER_SCHEMA.toLowerCase()}.department`:
+      user.department = value;
+      user[ENTERPRISE_USER_SCHEMA] = { ...(user[ENTERPRISE_USER_SCHEMA] || {}), department: value };
+      break;
     case "emails":
       user.emails = Array.isArray(value) ? value : [value];
       break;
@@ -157,12 +216,41 @@ function removePath(user, path) {
     case 'emails[type eq "work"].value':
       user.emails = [];
       break;
+    case "department":
+      user.department = null;
+      user[ENTERPRISE_USER_SCHEMA] = { ...(user[ENTERPRISE_USER_SCHEMA] || {}), department: null };
+      break;
+    case `${ENTERPRISE_USER_SCHEMA.toLowerCase()}.department`:
+      user.department = null;
+      user[ENTERPRISE_USER_SCHEMA] = { ...(user[ENTERPRISE_USER_SCHEMA] || {}), department: null };
+      break;
     default: {
       const err = new Error(`Unsupported remove path: ${path}`);
       err.status = 400;
       err.scimType = "invalidPath";
       throw err;
     }
+  }
+}
+
+async function syncDepartmentGroup(userId, department) {
+  const nextRule = departmentRule(department);
+  const managedGroups = new Set(DEPARTMENT_GROUP_RULES.map((rule) => rule.groupName.toLowerCase()));
+  const currentGroups = await getKeycloakUserGroups(userId);
+
+  for (const group of currentGroups) {
+    const groupName = String(group.name || "").trim().toLowerCase();
+    if (managedGroups.has(groupName) && groupName !== String(nextRule?.groupName || "").toLowerCase()) {
+      await removeUserFromKeycloakGroup(userId, group.id);
+    }
+  }
+
+  if (!nextRule) return;
+
+  const targetGroup = await ensureKeycloakGroupWithClientRole(nextRule.groupName, nextRule.roleName);
+  const alreadyMember = currentGroups.some((group) => group.id === targetGroup.id);
+  if (!alreadyMember) {
+    await addUserToKeycloakGroup(userId, targetGroup.id);
   }
 }
 
@@ -269,7 +357,8 @@ router.post("/Users", async (req, res) => {
     }
 
     const created = await createKeycloakUser(scimToKeycloakUser(req.body));
-    const scimUser = keycloakToScimUser(req, created);
+    await syncDepartmentGroup(created.id, scimDepartment(req.body));
+    const scimUser = await keycloakToScimUserWithGroups(req, await getKeycloakUserById(created.id));
     return res.status(201).set("Location", scimUser.meta.location).json(scimUser);
   } catch (err) {
     return handleKeycloakError(res, err);
@@ -298,7 +387,8 @@ router.put("/Users/:id", async (req, res) => {
 
     const existing = await getKeycloakUserById(req.params.id);
     const updated = await updateKeycloakUser(req.params.id, scimToKeycloakUser(req.body, existing));
-    const scimUser = keycloakToScimUser(req, updated);
+    await syncDepartmentGroup(req.params.id, scimDepartment(req.body) ?? keycloakDepartment(updated));
+    const scimUser = await keycloakToScimUserWithGroups(req, updated);
     return res.set("Location", scimUser.meta.location).json(scimUser);
   } catch (err) {
     return handleKeycloakError(res, err);
@@ -315,7 +405,8 @@ router.patch("/Users/:id", async (req, res) => {
     const existing = await getKeycloakUserById(req.params.id);
     const patchedScim = applyPatchOperations(keycloakToScimUser(req, existing), req.body?.Operations);
     const updated = await updateKeycloakUser(req.params.id, scimToKeycloakUser(patchedScim, existing));
-    return res.json(keycloakToScimUser(req, updated));
+    await syncDepartmentGroup(req.params.id, scimDepartment(patchedScim));
+    return res.json(await keycloakToScimUserWithGroups(req, updated));
   } catch (err) {
     return handleKeycloakError(res, err);
   }

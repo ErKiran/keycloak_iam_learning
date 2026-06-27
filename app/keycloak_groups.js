@@ -94,6 +94,65 @@ async function getKeycloakUserGroups(userId) {
   return Array.isArray(response.data) ? response.data : [];
 }
 
+async function findKeycloakGroupByName(name) {
+  const groups = await searchKeycloakGroups({ search: name });
+  const normalized = String(name || "").trim().toLowerCase();
+  return groups.find((group) => String(group.name || "").trim().toLowerCase() === normalized) || null;
+}
+
+async function getClientUuidByClientId(clientId) {
+  const headers = await authHeaders();
+  const response = await axios.get(`${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/clients`, {
+    headers,
+    params: { clientId, max: 2 },
+    timeout: 10000,
+  });
+
+  const clients = Array.isArray(response.data) ? response.data : [];
+  return clients[0]?.id || null;
+}
+
+async function getClientRole(clientUuid, roleName) {
+  const headers = await authHeaders();
+  const response = await axios.get(
+    `${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/clients/${encodeURIComponent(clientUuid)}/roles/${encodeURIComponent(roleName)}`,
+    {
+      headers,
+      timeout: 10000,
+    }
+  );
+
+  return response.data;
+}
+
+async function assignClientRoleToGroup(groupId, roleName, clientId = KEYCLOAK_CLIENT_ID) {
+  const clientUuid = await getClientUuidByClientId(clientId);
+  if (!clientUuid) {
+    throw new Error(`Keycloak client not found: ${clientId}`);
+  }
+
+  const role = await getClientRole(clientUuid, roleName);
+  const headers = await authHeaders();
+  await axios.post(
+    `${groupsBaseUrl()}/${encodeURIComponent(groupId)}/role-mappings/clients/${encodeURIComponent(clientUuid)}`,
+    [role],
+    {
+      headers,
+      timeout: 10000,
+    }
+  );
+}
+
+async function ensureKeycloakGroupWithClientRole(groupName, roleName, clientId = KEYCLOAK_CLIENT_ID) {
+  let group = await findKeycloakGroupByName(groupName);
+  if (!group) {
+    group = await createKeycloakGroup({ name: groupName });
+  }
+
+  await assignClientRoleToGroup(group.id, roleName, clientId);
+  return group;
+}
+
 async function createKeycloakGroup(group) {
   const headers = await authHeaders();
   const response = await axios.post(groupsBaseUrl(), group, {
@@ -149,6 +208,8 @@ module.exports = {
   getKeycloakGroupById,
   getKeycloakGroupMembers,
   getKeycloakUserGroups,
+  findKeycloakGroupByName,
+  ensureKeycloakGroupWithClientRole,
   createKeycloakGroup,
   updateKeycloakGroup,
   deleteKeycloakGroup,

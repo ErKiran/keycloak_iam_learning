@@ -225,6 +225,15 @@
           "Customer"
         ]
       }
+    },
+    {
+      "name": "Finance",
+      "path": "/Finance",
+      "clientRoles": {
+        "web-app": [
+          "Teller"
+        ]
+      }
     }
   ],
   "users": [
@@ -306,7 +315,8 @@
         "realm-management": [
           "query-users",
           "view-users",
-          "view-clients"
+          "view-clients",
+          "manage-users"
         ]
       }
     },
@@ -318,7 +328,8 @@
         "realm-management": [
           "query-users",
           "view-users",
-          "view-clients"
+          "view-clients",
+          "manage-users"
         ]
       }
     }
