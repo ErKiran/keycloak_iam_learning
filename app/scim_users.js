@@ -23,12 +23,12 @@ const ERROR_SCHEMA = "urn:ietf:params:scim:api:messages:2.0:Error";
 const ENTERPRISE_USER_SCHEMA = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User";
 const DEPARTMENT_GROUP_RULES = [
   {
-    department: "information technology",
+    departments: ["information technology", "it"],
     groupName: "Developer",
     roleName: "Developer",
   },
   {
-    department: "finance",
+    departments: ["finance"],
     groupName: "Finance",
     roleName: "Teller",
   },
@@ -116,10 +116,26 @@ function scimDepartment(scimUser = {}) {
   return department;
 }
 
+function normalizeDepartment(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 function departmentRule(department) {
-  const normalized = String(department || "").trim().toLowerCase();
-  const rule = DEPARTMENT_GROUP_RULES.find((item) => item.department === normalized) || null;
-  scimDebug("department rule resolved", { department, normalized, rule });
+  const normalized = normalizeDepartment(department);
+  const configuredRules = DEPARTMENT_GROUP_RULES.map((item) => ({
+    departments: item.departments,
+    normalizedDepartments: item.departments.map(normalizeDepartment),
+    groupName: item.groupName,
+    roleName: item.roleName,
+  }));
+  const rule = DEPARTMENT_GROUP_RULES.find((item) =>
+    item.departments.map(normalizeDepartment).includes(normalized)
+  ) || null;
+  scimDebug("department rule resolved", { department, normalized, configuredRules, rule });
   return rule;
 }
 
@@ -270,7 +286,7 @@ function removePath(user, path) {
 async function syncDepartmentGroup(userId, department) {
   scimDebug("department sync start", { userId, department });
   const nextRule = departmentRule(department);
-  const managedGroups = new Set(DEPARTMENT_GROUP_RULES.map((rule) => rule.groupName.toLowerCase()));
+  const managedGroups = new Set(DEPARTMENT_GROUP_RULES.map((rule) => String(rule.groupName).toLowerCase()));
   const currentGroups = await getKeycloakUserGroups(userId);
   scimDebug("department sync current groups", {
     userId,
